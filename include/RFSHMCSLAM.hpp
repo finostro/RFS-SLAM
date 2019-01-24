@@ -49,590 +49,660 @@
 
 namespace rfs {
 
-  /**
-   *  \class RFSHMCSLAM
-   *  \brief Random Finite Set Hamiltonian Monte Carlo SLAM
-   *
-   *
-   *
-   *  \tparam RobotProcessModel A robot process model derived from ProcessModel
-   *  \tparam MeasurementModel A sensor model derived from MeasurementModel
-   *  \author  Felipe Inostroza
-   */
-  template<class RobotProcessModel, class MeasurementModel>
-    class RFSHMCSLAM {
+/**
+ *  \class RFSHMCSLAM
+ *  \brief Random Finite Set Hamiltonian Monte Carlo SLAM
+ *
+ *
+ *
+ *  \tparam RobotProcessModel A robot process model derived from ProcessModel
+ *  \tparam MeasurementModel A sensor model derived from MeasurementModel
+ *  \author  Felipe Inostroza
+ */
+template<class RobotProcessModel, class MeasurementModel>
+class RFSHMCSLAM {
 
-    public:
-      EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+public:
+	EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-      typedef typename RobotProcessModel::TState TPose;
-      typedef typename RobotProcessModel::TInput TInput;
-      typedef typename MeasurementModel::TLandmark TLandmark;
-      typedef typename MeasurementModel::TMeasurement TMeasurement;
-      typedef RFSHMCParticle<RobotProcessModel, MeasurementModel> TParticle;
-      typedef std::vector<TParticle> TParticleSet;
-      static const int PoseDim =  TPose::Vec::RowsAtCompileTime;
-      static const int LandmarkDim =  TLandmark::Vec::RowsAtCompileTime;
-      /**
-       * \brief Configurations for this RFSBatchPSO optimizer
-       */
-      struct Config {
+	typedef typename RobotProcessModel::TState TPose;
+	typedef typename RobotProcessModel::TInput TInput;
+	typedef typename MeasurementModel::TLandmark TLandmark;
+	typedef typename MeasurementModel::TMeasurement TMeasurement;
+	typedef RFSHMCParticle<RobotProcessModel, MeasurementModel> TParticle;
+	typedef std::vector<TParticle> TParticleSet;
+	static const int PoseDim = TPose::Vec::RowsAtCompileTime;
+	static const int LandmarkDim = TLandmark::Vec::RowsAtCompileTime;
+	/**
+	 * \brief Configurations for this RFSBatchPSO optimizer
+	 */
+	struct Config {
 
-        int nParticles_; /**< number of particles for the PSO algorithm */
+		int nParticles_; /**< number of particles for the PSO algorithm */
 
-        double ospa_c_; /**< ospa-like c value for calculating set differences and speed*/
+		double ospa_c_; /**< ospa-like c value for calculating set differences and speed*/
 
-        /** The threshold used to determine if a possible meaurement-landmark
-         *  pairing is significant to worth considering
-         */
-        double MeasurementLikelihoodThreshold_;
+		/** The threshold used to determine if a possible meaurement-landmark
+		 *  pairing is significant to worth considering
+		 */
+		double MeasurementLikelihoodThreshold_;
 
-        double mapFromMeasurementProb_; /**< probability that each measurement will initialize a landmark on map initialization*/
+		double mapFromMeasurementProb_; /**< probability that each measurement will initialize a landmark on map initialization*/
 
-        double w; /**<  Particle Inertia */
+		double m; /**<  Constant mass, could be replaced by a (possibly diagonal) matrix*/
 
-        double phi_p; /**<  particle minimum influence   */
+		double phi_p; /**<  particle minimum influence   */
 
-        double card_phi_p; /**<  particle minimum influence on cardinality  */
+		double card_phi_p; /**<  particle minimum influence on cardinality  */
 
-        double phi_g; /**< global minimum influence  */
+		double phi_g; /**< global minimum influence  */
 
-        double card_phi_g; /**< global minimum influence on cardinality */
+		double card_phi_g; /**< global minimum influence on cardinality */
 
-        int K; /**< average number of neighbors */
+		int K; /**< Number of timesteps to integrate with leapfrog */
 
-        bool use_global; /**< use global  topology*/
+		double epsilon; /**< integration time for leapfrog simulation */
 
-      } config;
+		bool use_global; /**< use global  topology*/
 
-      /**
-       * Constructor
-       */
-      RFSHMCSLAM ();
+	} config;
 
-      /** Destructor */
-      ~RFSHMCSLAM ();
+	/**
+	 * Constructor
+	 */
+	RFSHMCSLAM();
 
-      /**
-       * Add a single measurement
-       * @param z The measurement to add, make sure the timestamp is valid.
-       */
-      void
-      addMeasurement (TMeasurement z);
+	/** Destructor */
+	~RFSHMCSLAM();
 
-      /**
-       * Add a set of measurements
-       * @param Z The measurements to add, make sure the timestamp is valid.
-       */
-      void
-      addMeasurement (std::vector<TMeasurement> Z);
+	/**
+	 * Add a single measurement
+	 * @param z The measurement to add, make sure the timestamp is valid.
+	 */
+	void
+	addMeasurement(TMeasurement z);
 
-      /**
-       * Add a single odometry input
-       * @param u the odometry input
-       */
-      void
-      addInput (TInput u);
+	/**
+	 * Add a set of measurements
+	 * @param Z The measurements to add, make sure the timestamp is valid.
+	 */
+	void
+	addMeasurement(std::vector<TMeasurement> Z);
 
-      /**
-       * set all the odometry inputs
-       * @param U vector containing all odometry inputs
-       */
-      void
-      setInputs (std::vector<TInput> U);
+	/**
+	 * Add a single odometry input
+	 * @param u the odometry input
+	 */
+	void
+	addInput(TInput u);
 
-      /**
-       * Generate random trajectories based on the motion model of the robot
-       */
-      void
-      initTrajectories ();
+	/**
+	 * set all the odometry inputs
+	 * @param U vector containing all odometry inputs
+	 */
+	void
+	setInputs(std::vector<TInput> U);
 
-      /**
-       * Generate random maps based on the already initialized trajectories
-       */
-      void
-      initMaps ();
+	/**
+	 * Generate random trajectories based on the motion model of the robot
+	 */
+	void
+	initTrajectories();
 
-      /**
-       * initialize the particles
-       */
-      void
-      init ();
+	/**
+	 * Generate random maps based on the already initialized trajectories
+	 */
+	void
+	initMaps();
 
+	/**
+	 * initialize the particles
+	 */
+	void
+	init();
 
+	/**
+	 * Get the best  PSO particle
+	 * @return pointer to the particle
+	 */
+	TParticle*
+	getBestParticle(std::vector<TParticle> &particles);
 
-      /**
-       * Get the best  PSO particle
-       * @return pointer to the particle
-       */
-      TParticle*
-      getBestParticle (std::vector<TParticle> &particles);
+	/**
+	 * Sets the likelihood and gradients of a particle to zero.
+	 * @param particle the particle
+	 */
+	void clear(TParticle &particle);
 
-      /**
-       * Calculates the measurement likelihood of particle particleIdx at time k
-       * @param particleIdx The particle, trajectory and map
-       * @param k the time for which to calculate the likelihood
-       * @return the measurement likelihood
-       */
+	/**
+	 * Calculates the measurement likelihood of particle at time k, gradients are added to the current gradients in the particle object.
+	 * @param particleIdx The particle, trajectory and map
+	 * @param k the time for which to calculate the likelihood
+	 * @return the measurement likelihood
+	 */
 
-      double
-      rfsMeasurementLikelihood (const TParticle &particle, const int k, typename TPose::Vec &pose_gradient, std::vector<TLandmark::Vec> &landmarks_gradient);
+	double
+	rfsMeasurementLogLikelihood(TParticle &particle, const int k);
 
-      /**
-       * Calculates the measurement likelihood of particle particleIdx  including all available times
-       * @param particleIdx The particle, trajectory and map
-       * @return the measurement likelihood
-       */
+	/**
+	 * Calculates the measurement likelihood of particle  including all available times stores the likelihood value and gradients on the particle object.
+	 * @param particle[in,out] The particle, trajectory and map,
+	 * @return the measurement likelihood
+	 */
 
-      double
-      rfsMeasurementLikelihood (const TParticle &particle, std::vector<TPose::Vec> &trajectory_gradient, std::vector<TLandmark::Vec> &landmarks_gradient);
+	double
+	rfsMeasurementLogLikelihood(TParticle &particle);
 
-      /**
-       * Evaluate the current likelihood of all the particles
-       */
-      void
-      evaluateLikelihoods (std::vector<TParticle> &particles);
-      /**
-       * Run the leapFrog algorithm n times on a particle
-       * @param[in] particle  input particle to start Hamiltonian Simulation
-       * @param[in] n number of leapfrog iterations to run
-       * @return
-       */
-      TParticle leapFrog(const TParticle &particle, int n);
+	/**
+	 * Evaluate the current likelihood of all the particles
+	 */
+	void
+	evaluateLikelihoods(std::vector<TParticle> &particles);
+	/**
+	 * Run the leapFrog algorithm n times on a particle
+	 * @param[in] particle  input particle to start Hamiltonian Simulation
+	 * @param[in] n number of leapfrog iterations to run
+	 * @return
+	 */
+	TParticle leapFrog(const TParticle &particle, int n);
 
+	/***
+	 * Resample random velocities with  Gaussian distribution.
+	 * @param particle[in,out] The particle, whose velocity is changed
+	 */
+	void
+	resampleLandmarkVelocity(TParticle &particle);
 
-      /***
-       * Resample random velocities with  Gaussian distribution.
-       * @param particle[in,out] The particle, whose velocity is changed
-       */
-      void
-      resampleLandmarkVelocity (TParticle &particle);
+	MeasurementModel *mModelPtr_;
+	RobotProcessModel *robotProcessModelPtr_;
+private:
 
-      MeasurementModel *mModelPtr_;
-      RobotProcessModel *robotProcessModelPtr_;
-    private:
+	int nThreads_; /**< Number of threads  */
+	int iteration_;
+	std::vector<TInput> inputs_; /**< vector containing all odometry inputs */
+	std::vector<std::vector<TMeasurement> > Z_; /**< vector containing all feature measurements */
+	std::vector<std::vector<int> > DA_; /**< vector containing available data associations, -1 meaning unknown data association, -2 known to be false alarm */
+	std::vector<TimeStamp> time_;
 
-      int nThreads_; /**< Number of threads  */
-      int iteration_;
-      bool hasImproved_;
-      std::vector<TInput> inputs_; /**< vector containing all odometry inputs */
-      std::vector<std::vector<TMeasurement> > Z_; /**< vector containing all feature measurements */
-      std::vector<TimeStamp> time_;
-      std::vector<TParticle> particles_;
-      TParticle bestParticle_;
+	static double constexpr BIG_NEG_NUM = -1000; // to represent log(0)
 
-      std::vector< std::vector<int > > topology_;
+};
 
-    };
+//////////////////////////////// Implementation ////////////////////////
 
-  //////////////////////////////// Implementation ////////////////////////
+template<class RobotProcessModel, class MeasurementModel>
+typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle*
+RFSHMCSLAM<RobotProcessModel, MeasurementModel>::getBestParticle(std::vector<TParticle> &particles) {
 
+	double maxlikelihood = -std::numeric_limits<double>::infinity();
+	double maxi = -1;
+	for (int i = 0; i < particles.size(); i++) {
+		if (maxlikelihood > particles[i].currentLikelihood) {
+			maxi = i;
+			maxlikelihood = particles[i].currentLikelihood;
+		}
 
-  template<class RobotProcessModel, class MeasurementModel>
-    typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle*
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::getBestParticle (std::vector<TParticle> &particles) {
+	}
+	return &(particles[maxi]);
+}
 
-	  double maxlikelihood = -std::numeric_limits<double>::infinity();
-	  double maxi=-1;
-	  for (int i=0; i < particles.size(); i++){
-		  if( maxlikelihood> particles[i].currentLikelihood ){
-			  maxi=i;
-			  maxlikelihood = particles[i].currentLikelihood ;
-		  }
-
-	  }
-      return &(particles[maxi]);
-    }
-
-  template<class RobotProcessModel, class MeasurementModel>
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::RFSHMCSLAM () {
-      nThreads_ = 1;
-      iteration_ = 0;
-      hasImproved_ = false;
+template<class RobotProcessModel, class MeasurementModel>
+RFSHMCSLAM<RobotProcessModel, MeasurementModel>::RFSHMCSLAM() {
+	nThreads_ = 1;
+	iteration_ = 0;
 
 #ifdef _OPENMP
-      nThreads_ = omp_get_max_threads();
+	nThreads_ = omp_get_max_threads();
 #endif
-      mModelPtr_ = new MeasurementModel();
-      robotProcessModelPtr_ = new RobotProcessModel();
+	mModelPtr_ = new MeasurementModel();
+	robotProcessModelPtr_ = new RobotProcessModel();
 
-    }
+}
 
-  template<class RobotProcessModel, class MeasurementModel>
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::~RFSHMCSLAM () {
+template<class RobotProcessModel, class MeasurementModel>
+RFSHMCSLAM<RobotProcessModel, MeasurementModel>::~RFSHMCSLAM() {
 
-      delete mModelPtr_;
-      delete robotProcessModelPtr_;
-    }
+	delete mModelPtr_;
+	delete robotProcessModelPtr_;
+}
 
-  template<class RobotProcessModel, class MeasurementModel>
-    void
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::addInput (TInput u) {
+template<class RobotProcessModel, class MeasurementModel>
+void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::addInput(TInput u) {
 
-      inputs_.push_back(u);
-      time_.push_back(u.getTime());
-      std::sort(inputs_.begin(), inputs_.begin());
-      std::sort(time_.begin(), time_.begin());
-      Z_.resize(inputs_.size() + 1);
+	inputs_.push_back(u);
+	time_.push_back(u.getTime());
+	std::sort(inputs_.begin(), inputs_.begin());
+	std::sort(time_.begin(), time_.begin());
+	Z_.resize(inputs_.size() + 1);
 
-    }
+}
 
-  template<class RobotProcessModel, class MeasurementModel>
-    void
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::setInputs (std::vector<TInput> U) {
+template<class RobotProcessModel, class MeasurementModel>
+void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::setInputs(std::vector<TInput> U) {
 
-      inputs_ = U;
-      std::sort(inputs_.begin(), inputs_.begin());
+	inputs_ = U;
+	std::sort(inputs_.begin(), inputs_.begin());
 
-      time_.resize(inputs_.size() + 1);
-      time_[0] =0;
-      for (int i = 0; i < inputs_.size(); i++) {
-        time_[i + 1] = inputs_[i].getTime();
-      }
-      Z_.resize(inputs_.size() + 1);
-    }
+	time_.resize(inputs_.size() + 1);
+	time_[0] = 0;
+	for (int i = 0; i < inputs_.size(); i++) {
+		time_[i + 1] = inputs_[i].getTime();
+	}
+	Z_.resize(inputs_.size() + 1);
+}
 
-  template<class RobotProcessModel, class MeasurementModel>
-    void
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::addMeasurement (TMeasurement z) {
+template<class RobotProcessModel, class MeasurementModel>
+void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::addMeasurement(TMeasurement z) {
 
-      TimeStamp zTime = z.getTime();
+	TimeStamp zTime = z.getTime();
 
-      auto it = std::lower_bound(time_.begin(), time_.end(), zTime);
-      if (*it != zTime) {
-        std::cerr << "Measurement time does not match with any of the odometries\n zTime: " << zTime.getTimeAsDouble() << "\n";
-        std::exit(1);
-      }
-      int k = it - time_.begin();
-      Z_[k].push_back(z);
+	auto it = std::lower_bound(time_.begin(), time_.end(), zTime);
+	if (*it != zTime) {
+		std::cerr << "Measurement time does not match with any of the odometries\n zTime: " << zTime.getTimeAsDouble() << "\n";
+		std::exit(1);
+	}
+	int k = it - time_.begin();
+	Z_[k].push_back(z);
 
-    }
+}
 
+template<class RobotProcessModel, class MeasurementModel>
+void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::addMeasurement(std::vector<TMeasurement> Z) {
 
+	for (int i = 0; i < Z.size(); i++) {
+		this->addMeasurement(Z[i]);
+	}
+}
 
+template<class RobotProcessModel, class MeasurementModel>
+void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::init() {
+	particles_.resize(config.nParticles_);
 
+	initTrajectories();
+	initMaps();
+}
 
-  template<class RobotProcessModel, class MeasurementModel>
-    void
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::addMeasurement (std::vector<TMeasurement> Z) {
+template<class RobotProcessModel, class MeasurementModel>
+void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::initTrajectories() {
 
-      for (int i = 0; i < Z.size(); i++) {
-        this->addMeasurement(Z[i]);
-      }
-    }
+	for (int i = 0; i < config.nParticles_; i++) {
 
-  template<class RobotProcessModel, class MeasurementModel>
-    void
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::init () {
-      particles_.resize(config.nParticles_);
+		particles_[i].trajectory.resize(inputs_.size() + 1);
+		particles_[i].trajectory_velocity.resize(inputs_.size() + 1);
+		particles_[i].inputs.resize(inputs_.size());
+		particles_[i].inputs_velocity.resize(inputs_.size());
+		for (int k = 0; k < inputs_.size(); k++) {
+			TimeStamp dT = inputs_[k].getTime() - particles_[i].trajectory[k].getTime();
+			robotProcessModelPtr_->sample(particles_[i].trajectory[k + 1], particles_[i].trajectory[k], inputs_[k], dT, false, true, &particles_[i].inputs[k]);
+		}
+		particles_[i].bestTrajectory = particles_[i].trajectory;
+		particles_[i].bestTrajectory_velocity = particles_[i].trajectory_velocity;
+		particles_[i].bestInputs = particles_[i].inputs;
 
+		particles_[i].bestInputs_velocity.resize(inputs_.size());
 
+	}
+}
+template<class RobotProcessModel, class MeasurementModel>
+void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::initMaps() {
 
-      initTrajectories();
-      initMaps();
-    }
+	for (int i = 0; i < config.nParticles_; i++) {
 
-  template<class RobotProcessModel, class MeasurementModel>
-    void
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::initTrajectories () {
+		for (int k = 0; k < particles_[i].trajectory.size(); k++) {
+			for (int nz = 0; nz < Z_[k].size(); nz++) {
 
-      for (int i = 0; i < config.nParticles_; i++) {
+				if (drand48() < config.mapFromMeasurementProb_) {
 
-        particles_[i].trajectory.resize(inputs_.size() + 1);
-        particles_[i].trajectory_velocity.resize(inputs_.size() + 1);
-        particles_[i].inputs.resize(inputs_.size());
-        particles_[i].inputs_velocity.resize(inputs_.size());
-        for (int k = 0; k < inputs_.size(); k++) {
-          TimeStamp dT = inputs_[k].getTime() - particles_[i].trajectory[k].getTime();
-          robotProcessModelPtr_->sample(particles_[i].trajectory[k + 1], particles_[i].trajectory[k], inputs_[k], dT, false, true, &particles_[i].inputs[k]);
-        }
-        particles_[i].bestTrajectory = particles_[i].trajectory;
-        particles_[i].bestTrajectory_velocity = particles_[i].trajectory_velocity;
-        particles_[i].bestInputs = particles_[i].inputs;
+					TLandmark lm;
+					this->mModelPtr_->inverseMeasure(particles_[i].trajectory[k], Z_[k][nz], lm);
+					particles_[i].landmarks.push_back(lm);
+				}
+			}
+		}
 
-        particles_[i].bestInputs_velocity.resize(inputs_.size());
+		particles_[i].landmarks_velocity.resize(particles_[i].landmarks.size());
+		particles_[i].bestLandmarks_velocity.resize(particles_[i].landmarks.size());
+		particles_[i].bestLandmarks = particles_[i].landmarks;
 
-      }
-    }
-  template<class RobotProcessModel, class MeasurementModel>
-    void
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::initMaps () {
+	}
 
-      for (int i = 0; i < config.nParticles_; i++) {
+}
 
-        for (int k = 0; k < particles_[i].trajectory.size(); k++) {
-          for (int nz = 0; nz < Z_[k].size(); nz++) {
+template<class RobotProcessModel, class MeasurementModel>
+inline void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::clear(TParticle& particle) {
+	particle.currentLikelihood = 0;
+	for (auto &grad : particle.trajectory_gradient) {
+		grad.setZero();
+	}
+	for (auto &grad : particle.landmarks_gradient) {
+		grad.setZero();
+	}
+}
 
-            if (drand48() < config.mapFromMeasurementProb_) {
+template<class RobotProcessModel, class MeasurementModel>
+void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::evaluateLikelihoods(std::vector<TParticle> &particles) {
 
-              TLandmark lm;
-              this->mModelPtr_->inverseMeasure(particles_[i].trajectory[k], Z_[k][nz], lm);
-              particles_[i].landmarks.push_back(lm);
-            }
-          }
-        }
-
-        particles_[i].landmarks_velocity.resize(particles_[i].landmarks.size());
-        particles_[i].bestLandmarks_velocity.resize(particles_[i].landmarks.size());
-        particles_[i].bestLandmarks = particles_[i].landmarks;
-
-      }
-
-    }
-
-  template<class RobotProcessModel, class MeasurementModel>
-    void
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::evaluateLikelihoods () {
-      int besti = 0;
 #pragma omp parallel for
-      for (int i = 0; i < config.nParticles_; i++) {
-        particles_[i].currentLikelihood = rfsMeasurementLikelihood(i);
-        //std::cout << "likeli: " << particles_[i].currentLikelihood << "\n";
+	for (int i = 0; i < particles.size(); i++) {
+		rfsMeasurementLogLikelihood(particles[i]);
 
-        if (particles_[i].currentLikelihood > particles_[i].bestLikelihood) {
-          particles_[i].bestLikelihood = particles_[i].currentLikelihood;
-          particles_[i].bestTrajectory = particles_[i].trajectory;
-          particles_[i].bestInputs = particles_[i].inputs;
-          particles_[i].bestInputs_velocity = particles_[i].inputs_velocity;
-          particles_[i].bestLandmarks = particles_[i].landmarks;
-          particles_[i].bestLandmarks_velocity = particles_[i].landmarks_velocity;
-        }
-#pragma omp critical
-        {
-          if (particles_[i].currentLikelihood > particles_[besti].currentLikelihood) {
-            besti = i;
-          }
-        }
-      }
-      hasImproved_ = false;
-      if (particles_[besti].currentLikelihood > bestParticle_.currentLikelihood) {
-        bestParticle_ = particles_[besti];
-        hasImproved_ = true;
-        std::cout << "new best particle :   " << bestParticle_.currentLikelihood << "\n";
-      }
+	}
 
-    }
+}
 
-  template<class RobotProcessModel, class MeasurementModel>
-    double
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLikelihood (const int particleIdx) {
-      double l =  log(rfsMeasurementLikelihood(particleIdx, 0));
-      TimeStamp dT;
-      for (int k = 1; k < particles_[particleIdx].trajectory.size(); k++) {
-        l += log(rfsMeasurementLikelihood(particleIdx, k));
-        dT = time_[k] - time_[k - 1];
-        l += log(robotProcessModelPtr_->likelihood(particles_[particleIdx].trajectory[k], particles_[particleIdx].trajectory[k-1], inputs_[k - 1], dT));
-      }
-      //std::cout << "likelihood   " << l << "\n";
-      return l;
-    }
+template<class RobotProcessModel, class MeasurementModel>
+double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelihood(TParticle &particle) {
+	clear(particle);
+	double l = rfsMeasurementLogLikelihood(particle, 0);
+	TimeStamp dT;
+	for (int k = 1; k < particle.trajectory.size(); k++) {
 
-  template<class RobotProcessModel, class MeasurementModel>
-    double
-    RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLikelihood (const int particleIdx, const int k) {
+		l += rfsMeasurementLogLikelihood(particle, k);
+		dT = time_[k] - time_[k - 1];
+		typename TPose::Vec pose_process_gradient;
+		l += robotProcessModelPtr_->logLikelihood(particle.trajectory[k], particle.trajectory[k - 1], inputs_[k - 1], dT, &pose_process_gradient);
+		particle.trajectory_gradient[k] += pose_process_gradient;
+		particle.trajectory_gradient[k - 1] -= pose_process_gradient;
+	}
+	//std::cout << "likelihood   " << l << "\n";
+	return l;
+}
 
-      const int i = particleIdx;
-      TPose* pose = &particles_[particleIdx].trajectory[k];
-      const int nZ = this->Z_[k].size();
-      const unsigned int mapSize = particles_[particleIdx].landmarks.size();
-      // Find map points within field of view and their probability of detection
-      std::vector<unsigned int> lmInFovIdx;
-      std::vector<double> lmInFovPd;
-      std::vector<int> landmarkCloseToSensingLimit;
+template<class RobotProcessModel, class MeasurementModel>
+double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelihood(TParticle &particle, const int k) {
 
-      for (unsigned int m = 0; m < mapSize; m++) {
+	//std::cout << "LIKELY -----------------------------------------------------\n\n\n";
 
-        bool isCloseToSensingLimit = false;
+	assert(particle.trajectory_[k].getPos()[0] == particle.trajectory_[k].getPos()[0]);
+	const TPose &pose = particle.trajectory_[k];
+	const int nZ = this->Z_[k].size();
+	const unsigned int mapSize = particle.landmarks_.size();
 
-        TLandmark* lm = &this->particles_[particleIdx].landmarks[m];
+	assert(pose.getPos()[0] == pose.getPos()[0]);
 
-        bool isClose;
-        double Pd = this->mModelPtr_->probabilityOfDetection(*pose, *lm, isCloseToSensingLimit);
+	// Find map points within field of view and their probability of detection
+	std::vector<unsigned int> lmInFovIdx;
+	lmInFovIdx.reserve(mapSize);
+	std::vector<double> lmInFovPd;
+	std::vector<TLandmark::Vec> lmInFovGrad;
+	lmInFovPd.reserve(mapSize);
+	std::vector<int> landmarkCloseToSensingLimit;
+	landmarkCloseToSensingLimit.reserve(mapSize);
 
-        if (Pd > 0) {
-          lmInFovIdx.push_back(m);
-          lmInFovPd.push_back(Pd);
+	for (unsigned int m = 0; m < mapSize; m++) {
 
-          landmarkCloseToSensingLimit.push_back(isCloseToSensingLimit);
-        }
+		bool isCloseToSensingLimit = false;
 
-      }
-      const unsigned int nM = lmInFovIdx.size();
+		const TLandmark &lm = particle.landmarks[m];
+		typename TLandmark::Vec zerograd;
+		zerograd.setZero();
+		bool isClose;
+		double Pd = this->mModelPtr_->probabilityOfDetection(pose, lm, isCloseToSensingLimit);
 
-      // If map is empty everything must be a false alarm
+		if (Pd > 0) {
+			lmInFovIdx.push_back(m);
+			lmInFovPd.push_back(Pd);
+			lmInFovGrad.push_back(zerograd);
+			landmarkCloseToSensingLimit.push_back(isCloseToSensingLimit);
+		}
 
-      double clutter[nZ];
-      for (int n = 0; n < nZ; n++) {
-        clutter[n] = this->mModelPtr_->clutterIntensity(this->Z_[k][n], nZ);
-      }
+	}
 
-      if (nM == 0) {
-        double l = 1;
-        for (int n = 0; n < nZ; n++) {
-          l *= clutter[n];
-        }
-        return l;
-      }
+	const unsigned int nM = lmInFovIdx.size();
 
-      TLandmark* evalPt;
-      TLandmark evalPt_copy;
-      TMeasurement expected_z;
+	// If map is empty everything must be a false alarm
+	double clutter[nZ];
+	for (int n = 0; n < nZ; n++) {
+		if (DA_[k][n] == -1) {
+			double lclut = log(this->mModelPtr_->clutterIntensity(this->Z_[k][n], nZ));
+			clutter[n] = lclut < BIG_NEG_NUM ? BIG_NEG_NUM : lclut;
+		} else if (DA_[k][n] == -2)
+			clutter[n] = 0;
+		else
+			clutter[n] = BIG_NEG_NUM;
 
-      double md2; // Mahalanobis distance squared
+	}
 
-      // Create and fill in likelihood table (nM x nZ)
-      double** L;
-      CostMatrixGeneral likelihoodMatrix(L, nM, nZ);
+	if (nM == 0) {
+		double l = 0;
+		for (int n = 0; n < nZ; n++) {
+			l += clutter[n];
+		}
+		return l - this->mModelPtr_->clutterIntensityIntegral(nZ);
+	}
 
-      for (int m = 0; m < nM; m++) {
+	TLandmark* evalPt;
+	TLandmark evalPt_copy;
+	TMeasurement expected_z;
 
-        evalPt = &this->particles_[i].landmarks[lmInFovIdx[m]]; // get location of m
-        evalPt_copy = *evalPt; // so that we don't change the actual data //
-        evalPt_copy.setCov(MeasurementModel::TLandmark::Mat::Zero()); //
-        this->mModelPtr_->measure(*pose, evalPt_copy, expected_z); // get expected measurement for m
-        double Pd = lmInFovPd[m]; // get the prob of detection of m
+	double md2; // Mahalanobis distance squared
 
-        for (int n = 0; n < nZ; n++) {
+	// Create and fill in likelihood table (nM x nZ)
+	double** L;
+	CostMatrixGeneral likelihoodMatrix(L, nM, nZ);
+	likelihoodMatrix.MIN_LIKELIHOOD = BIG_NEG_NUM;
 
-          // calculate measurement likelihood with detection statistics
-          L[m][n] = expected_z.evalGaussianLikelihood(this->Z_[k][n], &md2) * Pd; // new line
-          if (L[m][n] < config.MeasurementLikelihoodThreshold_) {
-            L[m][n] = 0;
-          }
-        }
-      }
+	Eigen::Matrix<double, MeasurementModel::TMeasurement::Vec::RowsAtCompileTime, MeasurementModel::TPose::Vec::RowsAtCompileTime> jacobian_wrt_pose;
+	Eigen::Matrix<double, MeasurementModel::TMeasurement::Vec::RowsAtCompileTime, MeasurementModel::TLandmark::Vec::RowsAtCompileTime> jacobian_wrt_lmk;
 
-      // Partition the Likelihood Table and turn into a log-likelihood table
-      int nP = likelihoodMatrix.partition();
-      double l = 1;
-      double const BIG_NEG_NUM = -1000; // to represent log(0)
+	std::unordered_map<int, typename MeasurementModel::TLandmark::Vec> landmark_gradients;
+	std::unordered_map<int, typename MeasurementModel::TPose::Vec> pose_gradients;
 
-      // Go through each partition and determine the likelihood
-      for (int p = 0; p < nP; p++) {
+	//std::cout << "L: \n";
+	for (int m = 0; m < nM; m++) {
 
-        double partition_likelihood = 0;
+		evalPt = &particle.landmarks[lmInFovIdx[m]]; // get location of m
+		evalPt_copy = *evalPt; // so that we don't change the actual data //
+		evalPt_copy.setCov(MeasurementModel::TLandmark::Mat::Zero()); //
 
-        unsigned int nCols, nRows;
-        double** Cp;
-        unsigned int* rowIdx;
-        unsigned int* colIdx;
+		this->mModelPtr_->measure(pose, evalPt_copy, expected_z, &(jacobian_wrt_lmk), &(jacobian_wrt_pose)); // get expected measurement for m
+		double Pd = lmInFovPd[m]; // get the prob of detection of m
 
-        bool isZeroPartition = !likelihoodMatrix.getPartitionSize(p, nRows, nCols);
-        bool useMurtyAlgorithm = true;
-        //if (nRows + nCols <= 8 || isZeroPartition)
-        //  useMurtyAlgorithm = false;
+		for (int n = 0; n < nZ; n++) {
+			if (DA_[k][n] != m && DA_[k][n] != -1) { // data association exists and this is not it
+				L[m][n] = BIG_NEG_NUM;
+				continue;
+			}
+			typename MeasurementModel::TMeasurement::Vec n_error;
+			// calculate measurement likelihood with detection statistics
+			if (DA_[k][n] >= 0)
+				L[m][n] = expected_z.evalGaussianLogLikelihood(this->Z_[k][n], n_error, &md2) + log(Pd) - log(1 - Pd) - clutter[n]; // new line
+			else
+				L[m][n] = expected_z.evalGaussianLogLikelihood(this->Z_[k][n], n_error, &md2) + log(Pd) - log(1 - Pd) - clutter[n]; // new line
+			if (L[m][n] < config.MeasurementLikelihoodThreshold_) {
+				L[m][n] = BIG_NEG_NUM;
+			}
 
-        isZeroPartition = !likelihoodMatrix.getPartition(p, Cp, nRows, nCols, rowIdx, colIdx, useMurtyAlgorithm);
+			typename MeasurementModel::TLandmark::Vec lm_grad;
+			typename MeasurementModel::TPose::Vec pose_grad;
+			lm_grad = jacobian_wrt_lmk.transpose() * n_error;
+			pose_grad = jacobian_wrt_pose.transpose() * n_error;
+			//std::cout << "pose: " << pose[0] << "  lm:  " <<  evalPt_copy[0] << "  Z:  " << this->Z_[k][n][0] << "  posegrad:  " << pose_grad[0]  << " lmgrad: " << lm_grad << "\n";
 
-        if (isZeroPartition) { // all landmarks in this partition are mis-detected. All measurements are outliers
+			landmark_gradients.insert(std::make_pair(m * nZ + n, lm_grad));
+			pose_gradients.insert(std::make_pair(m * nZ + n, pose_grad));
 
-          partition_likelihood = 1;
-          for (int r = 0; r < nRows; r++) {
-            partition_likelihood *= lmInFovPd[rowIdx[r]];
-          }
+			//std::cout << L[m][n] << "  ";
 
-          for (int c = 0; c < nCols; c++) {
-            partition_likelihood *= clutter[colIdx[c]];
-          }
+		}
+		//std::cout << "\n";
+	}
 
-        }
-        else {
-          // turn the matrix into a log likelihood matrix with detection statistics,
-          // and fill in the extended part of the partition
+	// Partition the Likelihood Table and turn into a log-likelihood table
+	int nP = likelihoodMatrix.partition();
+	double l = 0;
 
-          for (int r = 0; r < nRows; r++) {
-            for (int c = 0; c < nCols; c++) {
-              if (Cp[r][c] == 0)
-                Cp[r][c] = BIG_NEG_NUM;
-              else {
-                Cp[r][c] = log(Cp[r][c]);
-                if (Cp[r][c] < BIG_NEG_NUM)
-                  Cp[r][c] = BIG_NEG_NUM;
-              }
-            }
-          }
+	// Go through each partition and determine the likelihood
+	for (int p = 0; p < nP; p++) {
 
-          if (useMurtyAlgorithm) { // use Murty's algorithm
+		double partition_log_likelihood = 0;
 
-            // mis-detections
-            for (int r = 0; r < nRows; r++) {
-              for (int c = nCols; c < nRows + nCols; c++) {
-                if (r == c - nCols)
-                  Cp[r][c] = log(1 - lmInFovPd[rowIdx[r]]);
-                else
-                  Cp[r][c] = BIG_NEG_NUM;
-              }
-            }
+		unsigned int nCols, nRows;
+		double** Cp;
+		unsigned int* rowIdx;
+		unsigned int* colIdx;
+		Eigen::Matrix<double, PoseDim, 1> partition_pose_gradient;
+		partition_pose_gradient.setZero();
 
-            // clutter
-            for (int r = nRows; r < nRows + nCols; r++) {
-              for (int c = 0; c < nCols; c++) {
-                if (r - nRows == c)
-                  Cp[r][c] = log(clutter[colIdx[c]]);
-                else
-                  Cp[r][c] = BIG_NEG_NUM;
-              }
-            }
+		bool isZeroPartition = !likelihoodMatrix.getPartitionSize(p, nRows, nCols);
+		bool useMurtyAlgorithm = true;
 
-            // the lower right corner
-            for (int r = nRows; r < nRows + nCols; r++) {
-              for (int c = nCols; c < nRows + nCols; c++) {
-                Cp[r][c] = 0;
-              }
-            }
+		isZeroPartition = !likelihoodMatrix.getPartition(p, Cp, nRows, nCols, rowIdx, colIdx, useMurtyAlgorithm);
 
-            Murty murtyAlgo(Cp, nRows + nCols);
-            Murty::Assignment a;
-            partition_likelihood = 0;
-            double permutation_log_likelihood = 0;
-            murtyAlgo.setRealAssignmentBlock(nRows, nCols);
-            for (int k = 0; k < 200; k++) {
-              int rank = murtyAlgo.findNextBest(a, permutation_log_likelihood);
-              if (rank == -1 || permutation_log_likelihood < BIG_NEG_NUM)
-                break;
-              partition_likelihood += exp(permutation_log_likelihood);
+		for (int r = 0; r < nRows; r++) {
+			partition_log_likelihood += log(lmInFovPd[rowIdx[r]]) < BIG_NEG_NUM ? BIG_NEG_NUM : log(lmInFovPd[rowIdx[r]]);
+		}
 
-            }
+		for (int c = 0; c < nCols; c++) {
+			partition_log_likelihood += clutter[colIdx[c]] < BIG_NEG_NUM ? BIG_NEG_NUM : clutter[colIdx[c]];
+		}
+		//std::cout << "partition_log_likelihood" <<partition_log_likelihood << "\n";
 
-          }
-          else { // use lexicographic ordering
+		if (isZeroPartition) { // all landmarks in this partition are mis-detected. All measurements are outliers
 
-            partition_likelihood = 0;
-            double permutation_log_likelihood = 0;
+			// This likelihood is already there
+		} else {
 
-            uint o[nRows + nCols];
+			//  fill in the extended part of the partition
 
-            PermutationLexicographic pl(nRows, nCols, true);
-            unsigned int nPerm = pl.next(o);
-            while (nPerm != 0) {
-              permutation_log_likelihood = 0;
-              for (int a = 0; a < nRows; a++) {
-                if (o[a] < nCols) { // detection
-                  permutation_log_likelihood += Cp[a][o[a]];
-                }
-                else { // mis-detection
-                  permutation_log_likelihood += log(1 - lmInFovPd[rowIdx[a]]);
-                }
-              }
-              for (int a = nRows; a < nRows + nCols; a++) { // outliers
-                if (o[a] < nCols) {
-                  permutation_log_likelihood += log(clutter[colIdx[o[a]]]);
-                }
-              }
-              partition_likelihood += exp(permutation_log_likelihood);
-              nPerm = pl.next(o);
-            }
+			for (int r = 0; r < nRows; r++) {
+				for (int c = 0; c < nCols; c++) {
 
-          } // End lexicographic ordering
+					if (Cp[r][c] < BIG_NEG_NUM)
+						Cp[r][c] = BIG_NEG_NUM;
 
-        } // End non zero partition
+				}
+			}
 
-        l *= partition_likelihood;
+			if (useMurtyAlgorithm) { // use Murty's algorithm
 
-      } // End partitions
+				// mis-detections
+				for (int r = 0; r < nRows; r++) {
+					for (int c = nCols; c < nRows + nCols; c++) {
+						if (r == c - nCols)
+							Cp[r][c] = 0;
+						else
+							Cp[r][c] = BIG_NEG_NUM;
+					}
+				}
 
-      return (l / this->mModelPtr_->clutterIntensityIntegral(nZ));
-    }
+				// clutter
+				for (int r = nRows; r < nRows + nCols; r++) {
+					for (int c = 0; c < nCols; c++) {
+						if (r - nRows == c)
+							Cp[r][c] = 0;
+						else
+							Cp[r][c] = BIG_NEG_NUM;
+						if (Cp[r][c] < BIG_NEG_NUM)
+							Cp[r][c] = BIG_NEG_NUM;
+					}
+				}
+
+				// the lower right corner
+				for (int r = nRows; r < nRows + nCols; r++) {
+					for (int c = nCols; c < nRows + nCols; c++) {
+						Cp[r][c] = 0;
+					}
+				}
+
+				Murty murtyAlgo(Cp, nRows + nCols);
+				Murty::Assignment a, first_a;
+
+				double permutation_log_likelihood = 0;
+				double first_permutation_log_likelihood = 0;
+				double permutation_likelihood = 0;
+				murtyAlgo.setRealAssignmentBlock(nRows, nCols);
+				//find the best assignment
+				int rank = murtyAlgo.findNextBest(a, first_permutation_log_likelihood);
+				if (rank == -1 || first_permutation_log_likelihood < BIG_NEG_NUM) {
+					std::cerr << "First association is zero!!\n";
+				}
+				first_a = a;
+
+				//std::cout << "first perm loglike: " <<first_permutation_log_likelihood<<"\n";
+				partition_log_likelihood += first_permutation_log_likelihood;
+
+				double partition_correction_component = 1; //< likelihood due to other data associations
+				for (int k = 0; k < 200; k++) {
+					int rank = murtyAlgo.findNextBest(a, permutation_log_likelihood);
+					//std::cout << "permutation loglike: " << permutation_log_likelihood <<"\n";
+					if (rank == -1 || permutation_log_likelihood < BIG_NEG_NUM)
+						break;
+
+					double permutation_correction_component = exp(permutation_log_likelihood - first_permutation_log_likelihood);
+					partition_correction_component += permutation_correction_component;
+
+					// find the gradients
+
+					for (int r = 0; r < nRows; r++) {
+						if (a[r] != first_a[r]) {
+
+							typename MeasurementModel::TLandmark::Vec lm_grad;
+							typename MeasurementModel::TPose::Vec pose_grad;
+							lm_grad.setZero();
+							pose_grad.setZero();
+							if (a[r] < nCols) {
+								lm_grad += landmark_gradients.at(rowIdx[r] * nZ + colIdx[a[r]]);
+								pose_grad += pose_gradients.at(rowIdx[r] * nZ + colIdx[a[r]]);
+
+							}
+							if (first_a[r] < nCols) {
+								pose_grad -= pose_gradients.at(rowIdx[r] * nZ + colIdx[first_a[r]]);
+								lm_grad -= landmark_gradients.at(rowIdx[r] * nZ + colIdx[first_a[r]]);
+							}
+							lmInFovGrad[rowIdx[r]] += lm_grad * permutation_correction_component;
+							partition_pose_gradient += pose_grad * permutation_correction_component;
+						}
+					}
+
+				}
+				// normalize the gradient corrections
+				for (int r = 0; r < nRows; r++) {
+					lmInFovGrad[rowIdx[r]] /= partition_correction_component;
+				}
+
+				// find the gradients
+				if (first_permutation_log_likelihood > BIG_NEG_NUM) {
+					for (int r = 0; r < nRows; r++) {
+						if (first_a[r] < nCols) {
+
+							typename MeasurementModel::TLandmark::Vec lm_grad = landmark_gradients.at(rowIdx[r] * nZ + colIdx[first_a[r]]);
+							typename MeasurementModel::TPose::Vec pose_grad = pose_gradients.at(rowIdx[r] * nZ + colIdx[first_a[r]]);
+							lmInFovGrad[rowIdx[r]] += lm_grad;
+							partition_pose_gradient += pose_grad;
+						}
+					}
+				}
+
+				//std::cout << "partition correction : " << partition_correction_component<< "\n";
+
+				particle.trajectory_gradient[k] += partition_pose_gradient;
+				partition_log_likelihood += log(partition_correction_component);
+				//std::cout << "partition partition_log_likelihood : " << partition_log_likelihood<< "\n";
+
+			} else { // use lexicographic ordering
+
+				std::cerr << "CANNOT USE LEXICOGRAPHICAL ORDER \n\n\n";
+				// CANNOT USE LEXICOGRAPHICAL ORDER
+			} // End lexicographic ordering
+
+		} // End non zero partition
+
+		// normalize landmark gradients
+
+		for (int lmk = 0; lmk < lmInFovGrad.size(); lmk++) {
+			assert(lmInFovGrad[lmk] == lmInFovGrad[lmk]);
+			particle.landmarks_gradient[lmInFovIdx[lmk]] += lmInFovGrad[lmk] ;
+		}
+
+		l += partition_log_likelihood;
+		//std::cout << " partition loglike: " << partition_log_likelihood << "\n";
+		//std::cout << " partial: " << l << "\n";
+
+	} // End partitions
+
+	return l - this->mModelPtr_->clutterIntensityIntegral(nZ);
+}
 
 }
 
