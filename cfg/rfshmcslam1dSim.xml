@@ -7,14 +7,14 @@
     <logDirPrefix>data/rfshmc1dslam/</logDirPrefix>
   </logging>
 
-  <timesteps>30</timesteps>
+  <timesteps>2</timesteps>
   <sec_per_timestep>1.0</sec_per_timestep>
 
   <trajectory>
-    <nSegments>5</nSegments> <!-- number of constant velocity segments -->
+    <nSegments>1</nSegments> <!-- number of constant velocity segments -->
     <max_dx_per_sec>0.30</max_dx_per_sec> <!-- max x-displacement per second -->
     <min_dx_per_sec>-0.30</min_dx_per_sec> <!-- min x-displacement per second -->
-    <vardx>0.0010</vardx> <!-- variance in x displacement per second -->
+    <vardx>0.010</vardx> <!-- variance in x displacement per second -->
   </trajectory>
 
   <landmarks>
@@ -32,13 +32,13 @@
   
   <optimizer>
     <optimizeIter>50</optimizeIter>
-    <iterations>1000</iterations>
+    <iterations>10000</iterations>
     <nParticles>10</nParticles> <!-- number of particles -->
     <ospaC>1.0</ospaC>
-    <initMapProb>0.05</initMapProb>
+    <initMapProb>0.5</initMapProb>
 
-    <K>10</K>
-    <epsilon>0.00001</epsilon>
+    <K>1</K>
+    <epsilon>0.001</epsilon>
     <m>1.0</m>
     <predict>
       <processNoiseInflationFactor>1.0</processNoiseInflationFactor> <!-- inflation factor of process noise covariance -->

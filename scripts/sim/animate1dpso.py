@@ -155,6 +155,8 @@ measurements_i = measurements[:,0].astype(int);
 print(measurements_i);
 measurements_x = measurements[:,1];
 
+measurements_x_0 = measurements[measurements_i==0,1];
+
 
 
 # Plotting
@@ -168,6 +170,8 @@ gtMapHandle, = axMap.plot(gtMap_x, -1*np.ones(len(gtMap_x)), 'r*', markersize=15
 ax = plt.gca();
 
 axMap.set_ylim([-2 , 2000])
+#axMap.set_xlim([-5 , 5])
+
 gtPoseHandle, = axTr.plot(gtPose_t, gtPose_x, 'r-', zorder=12);
 
 drPoseHandle, = axTr.plot(drPose_t, drPose_x, 'r--', zorder=10);
@@ -252,12 +256,13 @@ def animate(i):
         poseLine = estPoseFileHandle.readline()
         p =np.fromstring(poseLine,dtype=float,sep=' ');
         nparticle = nparticle + 1
-    axMap.set_ylim([-2 , nparticle])
+    axMap.set_ylim([-2.5 -measurements_i[len(measurements_x)-1] , nparticle])
     #axMap.set_xlim([-10,10])
     #print('traj ' + str(nparticle) + ' i ' + str(i) + '  p   '+ str(p))
     bestPoseHandle.set_data(trajectories[bestparticle].get_xdata() , trajectories[bestparticle].get_ydata())
     nparticle=0;
-    measurementHandle.set_data(measurements_x + trajectories[bestparticle].get_ydata()[measurements_i] , -2*np.ones(len(measurements_x)))
+    measurementHandle.set_data(measurements_x + trajectories[bestparticle].get_ydata()[measurements_i] , -measurements_i -2*np.ones(len(measurements_x)))
+    #measurementHandle.set_data(measurements_x_0 , -2*np.ones(len(measurements_x_0)))
     while len(m)>0 and m[0] < i:
       mapline = estMapFileHandle.readline()
       m = np.fromstring(mapline,dtype=float,sep=' ');

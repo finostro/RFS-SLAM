@@ -395,6 +395,7 @@ void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::initMaps(std::vector<TPart
 
 					TLandmark lm;
 					this->mModelPtr_->inverseMeasure(particles[i].trajectory[k], Z_[k][nz], lm);
+					lm.sample(lm);
 					particles[i].landmarks.push_back(lm.get());
 				}
 			}
@@ -443,7 +444,7 @@ void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::basicHamiltonianMCMC(std::
 template<class RobotProcessModel, class MeasurementModel>
 double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelihood(TParticle &particle) {
 	clear(particle);
-	double l = 0;//rfsMeasurementLogLikelihood(particle, 0);
+	double l = rfsMeasurementLogLikelihood(particle, 0);
 	TimeStamp dT;
 	for (int k = 1; k < particle.trajectory.size(); k++) {
 
@@ -455,7 +456,9 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelih
 		particle.currentLikelihood += processlikelihood;
 		particle.trajectory_gradient[k] -= pose_process_gradient;
 		particle.trajectory_gradient[k - 1] += pose_process_gradient;
+
 	}
+
 	/*
 	std::cout << "traj grad:  ";
 	for(auto grad:particle.trajectory_gradient){
@@ -569,6 +572,7 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelih
 			L[m][n] = expected_z.evalGaussianLogLikelihood(this->Z_[k][n], n_error, &md2) + log(Pd) - log(1 - Pd) - clutter[n]; // new line
 			if (L[m][n] < config.MeasurementLikelihoodThreshold_) {
 				L[m][n] = BIG_NEG_NUM;
+				continue;
 			}
 
 			typename MeasurementModel::TLandmark::Vec lm_grad;
@@ -677,6 +681,8 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelih
 				}
 				first_a = a;
 
+
+
 				//std::cout << "first perm loglike: " <<first_permutation_log_likelihood<<"\n";
 				partition_log_likelihood += first_permutation_log_likelihood;
 
@@ -717,7 +723,9 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelih
 				// normalize the gradient corrections
 				for (int r = 0; r < nRows; r++) {
 					lmInFovGrad[rowIdx[r]] /= partition_correction_component;
+
 				}
+				partition_pose_gradient/= partition_correction_component;
 
 				// find the gradients
 				if (first_permutation_log_likelihood > BIG_NEG_NUM) {
@@ -734,7 +742,7 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelih
 
 				//std::cout << "partition correction : " << partition_correction_component<< "\n";
 
-				particle.trajectory_gradient[k] += partition_pose_gradient;
+				particle.trajectory_gradient[k] -= partition_pose_gradient;
 				partition_log_likelihood += log(partition_correction_component);
 				//std::cout << "partition partition_log_likelihood : " << partition_log_likelihood<< "\n";
 
@@ -750,7 +758,7 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelih
 
 		for (int lmk = 0; lmk < lmInFovGrad.size(); lmk++) {
 			assert(lmInFovGrad[lmk] == lmInFovGrad[lmk]);
-			particle.landmarks_gradient[lmInFovIdx[lmk]] += lmInFovGrad[lmk] ;
+			particle.landmarks_gradient[lmInFovIdx[lmk]] -= lmInFovGrad[lmk] ;
 		}
 
 		l += partition_log_likelihood;
@@ -768,10 +776,12 @@ void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::momentumHalfStep(TParticle
 
 	for(int i=0; i<particle.landmarks.size(); i++){
 		particle.landmarks_momentum[i] -= 0.5*config.epsilon*particle.landmarks_gradient[i];
+
 	}
 	for(int i=0; i< particle.trajectory.size() ;  i++){
 		particle.trajectory_momentum[i] -= 0.5*config.epsilon * particle.trajectory_gradient[i];
 	}
+
 }
 template<class RobotProcessModel, class MeasurementModel>
 void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::stateFullStep(TParticle &particle){

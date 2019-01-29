@@ -579,7 +579,7 @@ public:
 		}
 
 		// measure ground truth likelihood!
-
+		particles.at(0).landmarks.resize(groundtruth_landmark_.size());
 		for(int i=0; i< groundtruth_landmark_.size() ; i++){
 			particles.at(0).landmarks[i] = groundtruth_landmark_[i].get();
 		}
