@@ -61,6 +61,7 @@ namespace rfs {
 
     double currentLikelihood = -std::numeric_limits<double>::infinity()
         , bestLikelihood = -std::numeric_limits<double>::infinity();
+    double hamiltonian;
 
 
 

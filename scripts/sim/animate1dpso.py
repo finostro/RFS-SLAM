@@ -37,7 +37,7 @@ import numpy as np
 import time
 
 import matplotlib
-matplotlib.use("Agg");
+#matplotlib.use("Agg");
 
 #print matplotlib.__version__
 
@@ -49,7 +49,7 @@ import matplotlib.ticker as ticker
 
 matplotlib.rcParams.update({'font.size': 20})
 
-saveMovie = True;
+saveMovie = False;
 saveFig = True
 timestepStart = 0
 
@@ -149,6 +149,14 @@ p =np.fromstring(line,dtype=float,sep=' ');
 final_iteration = p[0]
 print('final it: ' +str(final_iteration))
 
+print('Reading ' + measurementFile);
+measurements = np.genfromtxt(measurementFile);
+measurements_i = measurements[:,0].astype(int);
+print(measurements_i);
+measurements_x = measurements[:,1];
+
+
+
 # Plotting
 
 fig = plt.figure( figsize=(12,10), facecolor='w')
@@ -165,7 +173,6 @@ gtPoseHandle, = axTr.plot(gtPose_t, gtPose_x, 'r-', zorder=12);
 drPoseHandle, = axTr.plot(drPose_t, drPose_x, 'r--', zorder=10);
 
 bestPoseHandle, = axTr.plot([], [], 'g-',linewidth=3,zorder = 9);
-measurementHandle, = axTr.plot([], [], 'g*',zorder = 9);
 
 trajectories = [];
 for i in range(0, nTrDrawMax) :
@@ -173,6 +180,8 @@ for i in range(0, nTrDrawMax) :
     trajectories.append( trajectories_line );
 
 bestLandmarks, = axMap.plot([],[], linestyle='', marker='o', color='r', zorder=9)
+
+measurementHandle, = axMap.plot([], [], 'g*',zorder = 9);
 landmarks = [];
 for i in range(0, nLandmarksDrawMax) :
     landmark_particle, = axMap.plot([],[], linestyle='', marker='o', color='b')
@@ -248,6 +257,7 @@ def animate(i):
     #print('traj ' + str(nparticle) + ' i ' + str(i) + '  p   '+ str(p))
     bestPoseHandle.set_data(trajectories[bestparticle].get_xdata() , trajectories[bestparticle].get_ydata())
     nparticle=0;
+    measurementHandle.set_data(measurements_x + trajectories[bestparticle].get_ydata()[measurements_i] , -np.ones(len(measurements_x)))
     while len(m)>0 and m[0] < i:
       mapline = estMapFileHandle.readline()
       m = np.fromstring(mapline,dtype=float,sep=' ');
@@ -268,6 +278,7 @@ def animate(i):
     drawnObjects.append(gtMapHandle);
     drawnObjects.append(bestLandmarks);
     drawnObjects.append(bestPoseHandle);
+    drawnObjects.append(measurementHandle);
 
 
 
@@ -280,8 +291,7 @@ if saveMovie:
     FFMpegWriter = matplotlib.animation.writers['ffmpeg']
     animation.save(estimateMovieFile, writer=FFMpegWriter(fps = 30))
 else:
-    animateInit()
-    animate(final_iteration)
+    plt.show()
     
 
 if saveFig:

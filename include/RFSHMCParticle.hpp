@@ -51,15 +51,15 @@ namespace rfs {
   {
   public:
 
-    std::vector<typename RobotProcessModel::TInput> inputs , bestInputs;
-    std::vector<typename RobotProcessModel::TState> trajectory , bestTrajectory;
-    std::vector<typename MeasurementModel::TLandmark> landmarks , bestLandmarks;
+    std::vector<typename RobotProcessModel::TInput::Vec> inputs , bestInputs;
+    std::vector<typename RobotProcessModel::TState::Vec> trajectory , bestTrajectory;
+    std::vector<typename MeasurementModel::TLandmark::Vec> landmarks , bestLandmarks;
 
-    std::vector<typename RobotProcessModel::TInput> inputs_velocity, bestInputs_velocity;
-    std::vector<typename RobotProcessModel::TState::Vec> trajectory_velocity , bestTrajectory_velocity;
+    std::vector<typename RobotProcessModel::TInput::Vec> inputs_momentum, bestInputs_momentum;
+    std::vector<typename RobotProcessModel::TState::Vec> trajectory_momentum , bestTrajectory_momentum;
     std::vector<typename RobotProcessModel::TState::Vec> trajectory_gradient;
 
-    std::vector<typename MeasurementModel::TLandmark::Vec> landmarks_velocity, bestLandmarks_velocity;
+    std::vector<typename MeasurementModel::TLandmark::Vec> landmarks_momentum, bestLandmarks_momentum;
     std::vector<typename MeasurementModel::TLandmark::Vec> landmarks_gradient;
 
     double currentLikelihood = -std::numeric_limits<double>::infinity()
