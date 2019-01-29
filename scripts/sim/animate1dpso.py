@@ -257,7 +257,7 @@ def animate(i):
     #print('traj ' + str(nparticle) + ' i ' + str(i) + '  p   '+ str(p))
     bestPoseHandle.set_data(trajectories[bestparticle].get_xdata() , trajectories[bestparticle].get_ydata())
     nparticle=0;
-    measurementHandle.set_data(measurements_x + trajectories[bestparticle].get_ydata()[measurements_i] , -np.ones(len(measurements_x)))
+    measurementHandle.set_data(measurements_x + trajectories[bestparticle].get_ydata()[measurements_i] , -2*np.ones(len(measurements_x)))
     while len(m)>0 and m[0] < i:
       mapline = estMapFileHandle.readline()
       m = np.fromstring(mapline,dtype=float,sep=' ');
@@ -280,12 +280,12 @@ def animate(i):
     drawnObjects.append(bestPoseHandle);
     drawnObjects.append(measurementHandle);
 
-
+    
 
 
     return drawnObjects;
 print(len(drPose_t))
-animation = anim.FuncAnimation(plt.figure(1), animate, np.linspace(timestepStart, final_iteration , 900, dtype=int), interval=1,
+animation = anim.FuncAnimation(plt.figure(1), animate, np.linspace(timestepStart, final_iteration , final_iteration, dtype=int), interval=1,
                                init_func=animateInit, blit=True,  repeat=False);
 if saveMovie:
     FFMpegWriter = matplotlib.animation.writers['ffmpeg']

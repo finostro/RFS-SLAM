@@ -236,6 +236,14 @@ public:
 	resampleMomentum(TParticle &particle);
 
 	/***
+	 * Reset initial pose to zero
+	 * @param particle[in,out] The particle, poses and map are changed
+	 */
+	void
+	renormalize(TParticle &particle);
+
+
+	/***
 	 * Calculate the Hamiltonian
 	 * @param particle[in] The particle
 	 */
@@ -361,7 +369,7 @@ void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::initTrajectories(std::vect
 		particles[i].inputs_momentum.resize(inputs_.size());
 		for (int k = 0; k < inputs_.size(); k++) {
 			TimeStamp dT = time_[k+1] -time_[k];
-			TPose prePose(time_[k+1]), postPose;
+			TPose prePose(particles[i].trajectory[k],time_[k]), postPose;
 			TInput in;
 			robotProcessModelPtr_->sample(postPose, prePose, inputs_[k], dT, false, true, &in);
 			particles[i].trajectory[k + 1] = postPose.get();
@@ -435,11 +443,11 @@ void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::basicHamiltonianMCMC(std::
 template<class RobotProcessModel, class MeasurementModel>
 double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelihood(TParticle &particle) {
 	clear(particle);
-	double l = rfsMeasurementLogLikelihood(particle, 0);
+	double l = 0;//rfsMeasurementLogLikelihood(particle, 0);
 	TimeStamp dT;
 	for (int k = 1; k < particle.trajectory.size(); k++) {
 
-		//l += rfsMeasurementLogLikelihood(particle, k);
+		l += rfsMeasurementLogLikelihood(particle, k);
 		dT = time_[k] - time_[k - 1];
 		typename TPose::Vec pose_process_gradient;
 		double processlikelihood = robotProcessModelPtr_->logLikelihood(particle.trajectory[k], particle.trajectory[k - 1], inputs_[k - 1], dT, &pose_process_gradient);
@@ -782,10 +790,10 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::hamiltonian(const TParti
 	double hamiltonian=-particle.currentLikelihood;
 
 	for(auto &p:particle.trajectory_momentum){
-		hamiltonian+=p.squaredNorm();
+		hamiltonian+=0.5*p.squaredNorm()/config.m;
 	}
 	for(auto &p:particle.landmarks_momentum){
-			hamiltonian+=p.squaredNorm();
+			hamiltonian+=0.5*p.squaredNorm()/config.m;
 		}
 	return hamiltonian;
 }
@@ -793,6 +801,7 @@ template<class RobotProcessModel, class MeasurementModel>
 typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<RobotProcessModel, MeasurementModel>::basicHamiltonianMCMC(TParticle& particle){
 
 	resampleMomentum(particle);
+
 	TParticle particle_out = leapFrog(particle, config.K);
 	boost::uniform_real<> uni_dist(0,1);
 
@@ -803,6 +812,7 @@ typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<R
 	double p = std::exp(hamiltonian(particle)-hamiltonian(particle_out));
 	std::cout << "p:   " <<p  << " h1 :" << hamiltonian(particle) << "  h2:  " <<hamiltonian(particle_out) <<"\n";
 	if (uni_dist(randomGenerators_[threadnum])<p){
+		renormalize(particle_out);
 		return particle_out;
 
 	}
@@ -824,7 +834,23 @@ typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<R
 	return particle_out;
 
 }
+template<class RobotProcessModel, class MeasurementModel>
+inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::renormalize(TParticle& particle) {
 
+
+	for(int i=0; i<particle.landmarks.size(); i++){
+
+		particle.landmarks[i] -= particle.trajectory[0];
+
+	}
+	for(int i=0; i< particle.trajectory.size() ;  i++){
+
+			particle.trajectory[i] -= particle.trajectory[0];
+
+	}
+}
+
+}
 template<class RobotProcessModel, class MeasurementModel>
 inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::resampleMomentum(TParticle& particle) {
 
@@ -845,5 +871,5 @@ inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::resampleMoment
 	}
 }
 
-}
+
 #endif

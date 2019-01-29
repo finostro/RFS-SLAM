@@ -32,19 +32,19 @@
   
   <optimizer>
     <optimizeIter>50</optimizeIter>
-    <iterations>100000</iterations>
+    <iterations>1000</iterations>
     <nParticles>10</nParticles> <!-- number of particles -->
     <ospaC>1.0</ospaC>
-    <initMapProb>0.10</initMapProb>
+    <initMapProb>0.05</initMapProb>
 
-    <K>1</K>
-    <epsilon>0.001</epsilon>
+    <K>10</K>
+    <epsilon>0.00001</epsilon>
     <m>1.0</m>
     <predict>
       <processNoiseInflationFactor>1.0</processNoiseInflationFactor> <!-- inflation factor of process noise covariance -->
       
     </predict>
-    <MLThreshold>1e-4</MLThreshold> <!-- measurement likelihoods below this will be assumed to be 0 -->
+    <MLThreshold>-50000</MLThreshold> <!-- measurement likelihoods below this will be assumed to be 0 -->
     <update>
       <measurementNoiseInflationFactor>1.0</measurementNoiseInflationFactor> <!-- inflation factor of measurement covariance -->
       
