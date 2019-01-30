@@ -371,7 +371,7 @@ public:
 		MeasurementModel_Rng1D::TLandmark::Vec m;
 		for (int i = 0; i < groundtruth_landmark_.size(); i++) {
 			groundtruth_landmark_[i].get(m);
-			fprintf(pGTLandmarkFile, "%f   %f   %f\n", m(0), lmkFirstObsTime_[i]);
+			fprintf(pGTLandmarkFile, "%f   %f\n", m(0), lmkFirstObsTime_[i]);
 		}
 		fclose(pGTLandmarkFile);
 

@@ -48,6 +48,7 @@
 #include "RFSCeresSLAM.hpp"
 #include "GaussianGenerators.hpp"
 #include <boost/random/uniform_real.hpp>
+#include <boost/random/uniform_int.hpp>
 
 namespace rfs {
 
@@ -242,6 +243,9 @@ public:
 	void
 	renormalize(TParticle &particle);
 
+
+	void
+	birthDeathStep(TParticle &particle);
 
 	/***
 	 * Calculate the Hamiltonian
@@ -810,6 +814,7 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::hamiltonian(const TParti
 template<class RobotProcessModel, class MeasurementModel>
 typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<RobotProcessModel, MeasurementModel>::basicHamiltonianMCMC(TParticle& particle){
 
+	birthDeathStep(particle);
 	resampleMomentum(particle);
 
 	TParticle particle_out = leapFrog(particle, config.K);
@@ -831,6 +836,7 @@ typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<R
 template<class RobotProcessModel, class MeasurementModel>
 typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<RobotProcessModel, MeasurementModel>::leapFrog(TParticle& particle, int n) {
 	RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle particle_out= particle;
+	rfsMeasurementLogLikelihood(particle_out);
 	for (int i = 0; i < n; i++) {
 
 		momentumHalfStep(particle_out);
@@ -858,6 +864,45 @@ inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::renormalize(TP
 			particle.trajectory[i] -= particle.trajectory[0];
 
 	}
+}
+template<class RobotProcessModel, class MeasurementModel>
+inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::birthDeathStep(TParticle& particle) {
+
+	boost::uniform_real<> uni_dist(0, 1);
+	int threadnum = 0;
+#ifdef _OPENMP
+	threadnum = omp_get_thread_num();
+#endif
+	//remove a random landmark
+	if (particle.landmarks.size()>0 && uni_dist(randomGenerators_[threadnum]) < config.mapFromMeasurementProb_) {
+
+		boost::uniform_int<> uni_int_m(0, particle.landmarks.size()-1);
+		int m = uni_int_m(randomGenerators_[threadnum]);
+
+		particle.landmarks[m] = particle.landmarks.back();
+		particle.landmarks.pop_back();
+	}
+
+	// create a new random landmark
+	if (uni_dist(randomGenerators_[threadnum]) < config.mapFromMeasurementProb_) {
+
+		boost::uniform_int<> uni_int_k(0, Z_.size() - 1);
+		int k = uni_int_k(randomGenerators_[threadnum]);
+		boost::uniform_int<> uni_int_nz(0, Z_[k].size() - 1);
+		int nz = uni_int_nz(randomGenerators_[threadnum]);
+
+		TLandmark lm;
+		this->mModelPtr_->inverseMeasure(particle.trajectory[k], Z_[k][nz], lm);
+		lm.sample(lm);
+		particle.landmarks.push_back(lm.get());
+
+	}
+
+	particle.landmarks_momentum.resize(particle.landmarks.size());
+	particle.landmarks_gradient.resize(particle.landmarks.size());
+	particle.bestLandmarks_momentum.resize(particle.landmarks.size());
+	particle.bestLandmarks = particle.landmarks;
+
 }
 
 }

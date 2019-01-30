@@ -7,7 +7,7 @@
     <logDirPrefix>data/rfshmc1dslam/</logDirPrefix>
   </logging>
 
-  <timesteps>2</timesteps>
+  <timesteps>5</timesteps>
   <sec_per_timestep>1.0</sec_per_timestep>
 
   <trajectory>
@@ -32,13 +32,13 @@
   
   <optimizer>
     <optimizeIter>50</optimizeIter>
-    <iterations>10000</iterations>
+    <iterations>100</iterations>
     <nParticles>10</nParticles> <!-- number of particles -->
     <ospaC>1.0</ospaC>
-    <initMapProb>0.5</initMapProb>
+    <initMapProb>0.1</initMapProb>
 
-    <K>1</K>
-    <epsilon>0.001</epsilon>
+    <K>30</K>
+    <epsilon>0.0001</epsilon>
     <m>1.0</m>
     <predict>
       <processNoiseInflationFactor>1.0</processNoiseInflationFactor> <!-- inflation factor of process noise covariance -->
