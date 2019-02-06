@@ -212,11 +212,11 @@ public:
 
 	/**
 	 * Run the leapFrog algorithm n times on a particle
-	 * @param[in] particle  input particle to start Hamiltonian Simulation
+	 * @param[in,out] particle  input particle to start Hamiltonian Simulation
 	 * @param[in] n number of leapfrog iterations to run
-	 * @return the proposed particle
+	 *
 	 */
-	TParticle leapFrog(TParticle &particle, int n);
+	void leapFrog(TParticle &particle, int n);
 
 	/**
 	 * Perform a half step on the momentum state, ie predict the momentum at t + e/2
@@ -814,16 +814,21 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::hamiltonian(const TParti
 template<class RobotProcessModel, class MeasurementModel>
 typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<RobotProcessModel, MeasurementModel>::basicHamiltonianMCMC(TParticle& particle){
 
-	birthDeathStep(particle);
-	resampleMomentum(particle);
-
-	TParticle particle_out = leapFrog(particle, config.K);
-	boost::uniform_real<> uni_dist(0,1);
 
 	int threadnum=0;
 #ifdef _OPENMP
       threadnum = omp_get_thread_num();
 #endif
+	birthDeathStep(particle);
+	resampleMomentum(particle);
+	TParticle particle_out =particle;
+
+
+	boost::uniform_int<> uni_int(1, config.K);
+	leapFrog(particle_out, uni_int(randomGenerators_[threadnum]));
+	boost::uniform_real<> uni_dist(0,1);
+
+
 	double p = std::exp(hamiltonian(particle)-hamiltonian(particle_out));
 	std::cout << "p:   " <<p  << " h1 :" << hamiltonian(particle) << "  h2:  " <<hamiltonian(particle_out) <<"\n";
 	if (uni_dist(randomGenerators_[threadnum])<p){
@@ -834,20 +839,18 @@ typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<R
 	return particle;
 }
 template<class RobotProcessModel, class MeasurementModel>
-typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<RobotProcessModel, MeasurementModel>::leapFrog(TParticle& particle, int n) {
-	RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle particle_out= particle;
-	rfsMeasurementLogLikelihood(particle_out);
+void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::leapFrog(TParticle& particle, int n) {
+	rfsMeasurementLogLikelihood(particle);
 	for (int i = 0; i < n; i++) {
 
-		momentumHalfStep(particle_out);
-		stateFullStep(particle_out);
+		momentumHalfStep(particle);
+		stateFullStep(particle);
 
-		rfsMeasurementLogLikelihood(particle_out);
-		momentumHalfStep(particle_out);
+		rfsMeasurementLogLikelihood(particle);
+		momentumHalfStep(particle);
 	}
 
 
-	return particle_out;
 
 }
 template<class RobotProcessModel, class MeasurementModel>
@@ -874,6 +877,7 @@ inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::birthDeathStep
 	threadnum = omp_get_thread_num();
 #endif
 	//remove a random landmark
+	double accept=0;
 	if (particle.landmarks.size()>0 && uni_dist(randomGenerators_[threadnum]) < config.mapFromMeasurementProb_) {
 
 		boost::uniform_int<> uni_int_m(0, particle.landmarks.size()-1);

@@ -32,12 +32,12 @@
   
   <optimizer>
     <optimizeIter>50</optimizeIter>
-    <iterations>100</iterations>
-    <nParticles>10</nParticles> <!-- number of particles -->
+    <iterations>1000</iterations>
+    <nParticles>50</nParticles> <!-- number of particles -->
     <ospaC>1.0</ospaC>
-    <initMapProb>0.1</initMapProb>
+    <initMapProb>0.01</initMapProb>
 
-    <K>30</K>
+    <K>100</K>
     <epsilon>0.0001</epsilon>
     <m>1.0</m>
     <predict>
