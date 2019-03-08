@@ -110,7 +110,9 @@ public:
 		nParticles_ = pt.get("config.optimizer.nParticles", 200);
 		maxiter_ = pt.get("config.optimizer.iterations", 200);
 		ospa_c_ = pt.get("config.optimizer.ospaC", 1.0);
-		initMapProb_ = pt.get("config.optimizer.initMapProb", 0.01);
+		Pbirth_ = pt.get<double>("config.optimizer.Pbirth");
+		Pdeath_ = pt.get<double>("config.optimizer.Pdeath");
+		initMapProb_ = pt.get<double>("config.optimizer.initMapProb");
 
 
 		hmcslam_->config.K = pt.get<int>("config.optimizer.K");
@@ -438,6 +440,8 @@ public:
 		// configure the filter
 		hmcslam_->config.nParticles_ = nParticles_;
 		hmcslam_->config.mapFromMeasurementProb_ = initMapProb_;
+		hmcslam_->config.Pb = Pbirth_;
+		hmcslam_->config.Pd = Pdeath_;
 		hmcslam_->config.MeasurementLikelihoodThreshold_ = MeasurementLikelihoodThreshold_;
 
 		hmcslam_->setInputs(odometry_);
@@ -522,7 +526,7 @@ public:
 
 
 			hmcslam_->evaluateLikelihoods(particles);
-			hmcslam_->basicHamiltonianMCMC(particles);
+			hmcslam_->reversibleJumpHMC(particles);
 
 			if (iteration % 10 == 0 || iteration == maxiter_ - 1) {
 				float progressPercent = float(iteration + 1) / float(maxiter_);
@@ -634,7 +638,7 @@ private:
 	RFSHMCSLAM<MotionModel_Odometry1d, MeasurementModel_Rng1D> *hmcslam_;
 	int nParticles_;
 	double ospa_c_;
-	double initMapProb_;
+	double initMapProb_,Pbirth_,Pdeath_;
 	int maxiter_;
 
 	double pNoiseInflation_;

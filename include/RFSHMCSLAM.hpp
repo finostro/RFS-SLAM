@@ -99,6 +99,8 @@ public:
 		int K; /**< Number of timesteps to integrate with leapfrog */
 
 		double epsilon; /**< integration time for leapfrog simulation */
+		double Pb; /**< birth move probability */
+		double Pd; /**< Death move probability  note the HMC move probability is 1-Pd-Pb*/
 
 
 	} config;
@@ -196,12 +198,10 @@ public:
 	evaluateLikelihoods(std::vector<TParticle> &particles);
 
 	/**
-	 * Perform the basic hamiltonian step, where the leapfrog algorithm is used to propose move and it is accepted with probability equal to the Metropolis Hasting acceptance rate.
-	 *
-	 * Evaluate the current likelihood of all the particles
+	 * Perform the reversible jump HMC step,where either the birth death or HMC move is selected randomly and executed.
 	 */
 	void
-	basicHamiltonianMCMC(std::vector<TParticle> &particles);
+	reversibleJumpHMC(std::vector<TParticle> &particles);
 
 	/**
 	 * Perform the basic hamiltonian step, where the leapfrog algorithm is used to propose move and it is accepted with probability equal to the Metropolis Hasting acceptance rate.
@@ -209,6 +209,13 @@ public:
 	 * @return the new sample, possibly equal to particle
 	 */
 	TParticle basicHamiltonianMCMC(TParticle &particle);
+
+	/**
+	 * Randomly select between the birth death and HMC method, completing the reverisble jump HMC algorithm.
+	 * @param particle the input particle
+	 * @return the new sample, possibly equal to particle
+	 */
+	TParticle reversibleJumpHMC(TParticle &particle);
 
 	/**
 	 * Run the leapFrog algorithm n times on a particle
@@ -243,6 +250,17 @@ public:
 	void
 	renormalize(TParticle &particle);
 
+
+	/***
+	 * Apply the birth MCMC transition kernel
+	 * @param particle[in,out] TThe particle, map is changed
+	 */
+	void birthMove(TParticle &particle);
+	/***
+	 * Apply the death MCMC transition kernel
+	 * @param particle[in,out] TThe particle, map is changed
+	 */
+	void deathMove(TParticle &particle);
 
 	void
 	birthDeathStep(TParticle &particle);
@@ -436,15 +454,17 @@ void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::evaluateLikelihoods(std::v
 
 }
 template<class RobotProcessModel, class MeasurementModel>
-void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::basicHamiltonianMCMC(std::vector<TParticle> &particles) {
+void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::reversibleJumpHMC(std::vector<TParticle> &particles) {
 
 #pragma omp parallel for
 	for (int i = 0; i < particles.size(); i++) {
-		particles[i] = basicHamiltonianMCMC(particles[i]);
+		particles[i] = reversibleJumpHMC(particles[i]);
 
 	}
 
 }
+
+
 template<class RobotProcessModel, class MeasurementModel>
 double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelihood(TParticle &particle) {
 	clear(particle);
@@ -812,6 +832,30 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::hamiltonian(const TParti
 	return hamiltonian;
 }
 template<class RobotProcessModel, class MeasurementModel>
+typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<RobotProcessModel, MeasurementModel>::reversibleJumpHMC(TParticle& particle){
+	int threadnum=0;
+#ifdef _OPENMP
+      threadnum = omp_get_thread_num();
+#endif
+
+    	boost::uniform_real<> uni_dist(0,1);
+    	double r=uni_dist(randomGenerators_[threadnum]);
+    	if (r<config.Pb){
+    		TParticle particle_out =particle;
+    		birthMove(particle_out);
+    		return particle_out;
+    	}
+
+    	if (particle.landmarks.size()>0 && r<config.Pb+config.Pd){
+    		TParticle particle_out =particle;
+    		deathMove(particle_out);
+    		return particle_out;
+    	}
+    	return basicHamiltonianMCMC(particle);
+
+}
+
+template<class RobotProcessModel, class MeasurementModel>
 typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<RobotProcessModel, MeasurementModel>::basicHamiltonianMCMC(TParticle& particle){
 
 
@@ -819,7 +863,7 @@ typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<R
 #ifdef _OPENMP
       threadnum = omp_get_thread_num();
 #endif
-	birthDeathStep(particle);
+
 	resampleMomentum(particle);
 	TParticle particle_out =particle;
 
@@ -830,7 +874,7 @@ typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<R
 
 
 	double p = std::exp(hamiltonian(particle)-hamiltonian(particle_out));
-	std::cout << "p:   " <<p  << " h1 :" << hamiltonian(particle) << "  h2:  " <<hamiltonian(particle_out) <<"\n";
+	//std::cout << "p:   " <<p  << " h1 :" << hamiltonian(particle) << "  h2:  " <<hamiltonian(particle_out) <<"\n";
 	if (uni_dist(randomGenerators_[threadnum])<p){
 		renormalize(particle_out);
 		return particle_out;
@@ -869,6 +913,120 @@ inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::renormalize(TP
 	}
 }
 template<class RobotProcessModel, class MeasurementModel>
+inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::deathMove(TParticle& particle) {
+
+	boost::uniform_real<> uni_dist(0, 1);
+	int threadnum = 0;
+#ifdef _OPENMP
+	threadnum = omp_get_thread_num();
+#endif
+	//remove a random landmark
+	double accept=0;
+	double prevloglike=particle.currentLikelihood;
+	if (particle.landmarks.size()>0 ) {
+
+		boost::uniform_int<> uni_int_m(0, particle.landmarks.size()-1);
+		int m = uni_int_m(randomGenerators_[threadnum]);
+		double qbirth=0;
+		int numZ=0;
+		for(int k=0; k < Z_.size(); k++){
+			for(int nz=0; nz < Z_[k].size(); nz++){
+				TLandmark lm;
+						this->mModelPtr_->inverseMeasure(particle.trajectory[k], Z_[k][nz], lm);
+						qbirth+=lm.evalGaussianLikelihood(particle.landmarks[m]);
+						numZ++;
+			}
+		}
+		qbirth/=numZ;
+		double qdeath=1.0/particle.landmarks.size();
+
+
+
+		particle.landmarks[m] = particle.landmarks.back();
+		typename TLandmark::Vec lm=particle.landmarks.back();
+		particle.landmarks.pop_back();
+		particle.landmarks_momentum.resize(particle.landmarks.size());
+		particle.landmarks_gradient.resize(particle.landmarks.size());
+		particle.bestLandmarks_momentum.resize(particle.landmarks.size());
+		particle.bestLandmarks = particle.landmarks;
+		rfsMeasurementLogLikelihood(particle);
+		accept= exp(particle.currentLikelihood-prevloglike)*config.Pb*qbirth/(qdeath*config.Pd);
+		if(uni_dist(randomGenerators_[threadnum]) > accept){
+			particle.landmarks.push_back(lm);
+		}
+
+	}
+
+
+
+	particle.landmarks_momentum.resize(particle.landmarks.size());
+	particle.landmarks_gradient.resize(particle.landmarks.size());
+	particle.bestLandmarks_momentum.resize(particle.landmarks.size());
+	particle.bestLandmarks = particle.landmarks;
+
+}
+
+template<class RobotProcessModel, class MeasurementModel>
+inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::birthMove(TParticle& particle) {
+
+
+	boost::uniform_real<> uni_dist(0, 1);
+	int threadnum = 0;
+#ifdef _OPENMP
+	threadnum = omp_get_thread_num();
+#endif
+
+	double accept=0;
+	double prevloglike=particle.currentLikelihood;
+
+	// create a new random landmark
+
+		boost::uniform_int<> uni_int_k(0, Z_.size() - 1);
+		int k = uni_int_k(randomGenerators_[threadnum]);
+		boost::uniform_int<> uni_int_nz(0, Z_[k].size() - 1);
+		int nz = uni_int_nz(randomGenerators_[threadnum]);
+
+		TLandmark lm;
+		this->mModelPtr_->inverseMeasure(particle.trajectory[k], Z_[k][nz], lm);
+		lm.sample(lm);
+		particle.landmarks.push_back(lm.get());
+
+		double qbirth = 0;
+		int numZ = 0;
+		for (int k = 0; k < Z_.size(); k++) {
+			for (int nz = 0; nz < Z_[k].size(); nz++) {
+				TLandmark lm_z;
+				this->mModelPtr_->inverseMeasure(particle.trajectory[k], Z_[k][nz], lm_z);
+				qbirth += lm_z.evalGaussianLikelihood(particle.landmarks.back());
+				numZ++;
+			}
+		}
+		qbirth /= numZ;
+		double qdeath = 1.0 / particle.landmarks.size();
+		particle.landmarks_momentum.resize(particle.landmarks.size());
+		particle.landmarks_gradient.resize(particle.landmarks.size());
+		particle.bestLandmarks_momentum.resize(particle.landmarks.size());
+		particle.bestLandmarks = particle.landmarks;
+
+		rfsMeasurementLogLikelihood(particle);
+		accept = exp(particle.currentLikelihood - prevloglike) * qdeath *config.Pd/ (qbirth*config.Pb);
+
+		if (uni_dist(randomGenerators_[threadnum]) > accept) {
+
+			particle.landmarks.pop_back();
+		}else{
+
+		}
+
+
+	particle.landmarks_momentum.resize(particle.landmarks.size());
+	particle.landmarks_gradient.resize(particle.landmarks.size());
+	particle.bestLandmarks_momentum.resize(particle.landmarks.size());
+	particle.bestLandmarks = particle.landmarks;
+
+}
+
+template<class RobotProcessModel, class MeasurementModel>
 inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::birthDeathStep(TParticle& particle) {
 
 	boost::uniform_real<> uni_dist(0, 1);
@@ -878,13 +1036,35 @@ inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::birthDeathStep
 #endif
 	//remove a random landmark
 	double accept=0;
+	double prevloglike=particle.currentLikelihood;
 	if (particle.landmarks.size()>0 && uni_dist(randomGenerators_[threadnum]) < config.mapFromMeasurementProb_) {
 
 		boost::uniform_int<> uni_int_m(0, particle.landmarks.size()-1);
 		int m = uni_int_m(randomGenerators_[threadnum]);
+		double qbirth=0;
+		int numZ=0;
+		for(int k=0; k < Z_.size(); k++){
+			for(int nz=0; nz < Z_[k].size(); nz++){
+				TLandmark lm;
+						this->mModelPtr_->inverseMeasure(particle.trajectory[k], Z_[k][nz], lm);
+						qbirth+=lm.evalGaussianLikelihood(particle.landmarks[m]);
+						numZ++;
+			}
+		}
+		qbirth/=numZ;
+		double qdeath=1.0/particle.landmarks.size();
+
+
 
 		particle.landmarks[m] = particle.landmarks.back();
+		typename TLandmark::Vec lm=particle.landmarks.back();
 		particle.landmarks.pop_back();
+		rfsMeasurementLogLikelihood(particle);
+		accept= exp(particle.currentLikelihood-prevloglike)*qbirth/qdeath;
+		if(uni_dist(randomGenerators_[threadnum]) > accept){
+			particle.landmarks.push_back(lm);
+		}
+
 	}
 
 	// create a new random landmark
@@ -899,6 +1079,24 @@ inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::birthDeathStep
 		this->mModelPtr_->inverseMeasure(particle.trajectory[k], Z_[k][nz], lm);
 		lm.sample(lm);
 		particle.landmarks.push_back(lm.get());
+
+		double qbirth = 0;
+		int numZ = 0;
+		for (int k = 0; k < Z_.size(); k++) {
+			for (int nz = 0; nz < Z_[k].size(); nz++) {
+				TLandmark lm_z;
+				this->mModelPtr_->inverseMeasure(particle.trajectory[k], Z_[k][nz], lm_z);
+				qbirth += lm_z.evalGaussianLikelihood(particle.landmarks.back());
+				numZ++;
+			}
+		}
+		qbirth /= numZ;
+		double qdeath = 1.0 / particle.landmarks.size();
+		rfsMeasurementLogLikelihood(particle);
+		accept = exp(particle.currentLikelihood - prevloglike) * qdeath / qbirth;
+		if (uni_dist(randomGenerators_[threadnum]) > accept) {
+			particle.landmarks.pop_back();
+		}
 
 	}
 

@@ -32,14 +32,16 @@
   
   <optimizer>
     <optimizeIter>50</optimizeIter>
-    <iterations>1000</iterations>
-    <nParticles>50</nParticles> <!-- number of particles -->
+    <iterations>10000</iterations>
+    <nParticles>100</nParticles> <!-- number of particles -->
     <ospaC>1.0</ospaC>
-    <initMapProb>0.01</initMapProb>
+    <initMapProb>0.1</initMapProb>
+    <Pbirth>0.001</Pbirth>
+    <Pdeath>0.001</Pdeath>
 
-    <K>100</K>
-    <epsilon>0.0001</epsilon>
-    <m>1.0</m>
+    <K>50</K>
+    <epsilon>0.01</epsilon>
+    <m>10.0</m>
     <predict>
       <processNoiseInflationFactor>1.0</processNoiseInflationFactor> <!-- inflation factor of process noise covariance -->
       
