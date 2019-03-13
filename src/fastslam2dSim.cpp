@@ -35,7 +35,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 #include "FastSLAM.hpp"
-#include "KalmanFilter_RngBrg.hpp"
+#include "KalmanFilter.hpp"
 #include "MeasurementModel_RngBrg.hpp"
 #include "ProcessModel_Odometry2D.hpp"
 #include <stdio.h>
@@ -46,7 +46,7 @@
 #include <gperftools/profiler.h>
 #endif
 #ifdef _PERFTOOLS_HEAP
-#include <gperfools/heap-profiler.h>
+#include <gperftools/heap-profiler.h>
 #endif
 
 using namespace rfs;
@@ -142,6 +142,7 @@ public:
   void generateTrajectory(int randSeed = 0){
 
     srand48( randSeed );
+    initializeGaussianGenerators();
 
     TimeStamp t;
     int seg = 0;
@@ -840,6 +841,8 @@ int main(int argc, char* argv[]){
     std::cout << "Simulation random seed manually set to: " << seed << std::endl;
   }
   srand48( seed );
+  initializeGaussianGenerators();
+
 
   // boost::timer::auto_cpu_timer *timer = new boost::timer::auto_cpu_timer(6, "Simulation run time: %ws\n");
 

@@ -46,6 +46,7 @@
 #include <iostream>
 #include <stdio.h>
 #include "TimeStamp.hpp"
+#include "GaussianGenerators.hpp"
 
 
 namespace rfs
@@ -54,6 +55,7 @@ namespace rfs
 
   double const PI = acos(-1);
 
+
   /**
    * \class RandomVec
    * Representation of a Gaussian random vector, with mean and covariance. A time variable is also included for time-stamping.
@@ -61,17 +63,21 @@ namespace rfs
    * \tparam nDim Dimension of the vector
    * \author Keith Leung
    */
-  template<unsigned int nDim = 1>
+  template<unsigned int nDimension = 1>
   class RandomVec
   {
 
   public:
 
+    static const unsigned int nDim = nDimension;
     typedef ::Eigen::Matrix<double, nDim, 1> Vec;
     typedef ::Eigen::Matrix<double, nDim, nDim> Mat;
     typedef Mat Cov;
 
+
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+
 
     /** \brief Default constructor */
     RandomVec() : 
@@ -152,6 +158,7 @@ namespace rfs
       isValid_Sx_inv_(false),
       isValid_Sx_det_(false)
     {
+
       dimCheck();
       x_.setZero();
       Sx_.setZero();
@@ -172,7 +179,8 @@ namespace rfs
     isValid_Sx_det_( other.isValid_Sx_det_),
     Sx_L_( other.Sx_L_ ),
     isValid_Sx_L_( other.isValid_Sx_L_), 
-    t_(other.t_) 
+    t_(other.t_) ,
+    gaussian_pdf_factor_(other.gaussian_pdf_factor_)
     {}
 
     /**
@@ -180,6 +188,7 @@ namespace rfs
      * \param[in] rhs the right-hand-side from which data is copied
      */
     RandomVec& operator=( const RandomVec& rhs ){
+
     
       x_ = rhs.x_;
       Sx_ = rhs.Sx_;
@@ -205,6 +214,35 @@ namespace rfs
       assert(n >= 0 && n < nDim);
       return x_(n);
     }
+    /**
+     * const [] Operator for looking up the value of an element of x without changing anything
+     * \return the value of element n of vector x
+     */
+    const double& operator[] (const int n) const{
+      assert(n >= 0 && n < nDim);
+      return x_(n);
+    }
+
+    /** Comparison operator */
+    bool operator> (const RandomVec &rhs) const{
+      return this->t_ > rhs.t_;
+
+    }
+
+    /** Comparison operator */
+    bool operator>= (const RandomVec &rhs) const{
+      return this->t_ >= rhs.t_;
+    }
+
+    /** Comparison operator */
+    bool operator< (const RandomVec &rhs) const{
+      return this->t_ < rhs.t_;
+    }
+
+    /** Comparison operator */
+    bool operator<= (const RandomVec &rhs) const{
+      return this->t_ <= rhs.t_;
+    }
 
     /** 
      * Set the vector
@@ -221,6 +259,7 @@ namespace rfs
       isValid_Sx_L_ = false; 
       isValid_Sx_inv_ = false;
       isValid_Sx_det_ =false;
+      assert(checkCov());
     }
 
     /**
@@ -390,7 +429,7 @@ namespace rfs
 	isValid_Sx_inv_ = true;
       }
       e_ = to.x_ - x_;
-      return (e_.transpose() * Sx_inv_ * e_);
+      return (e_.transpose() * Sx_inv_ * e_).value();
     }
 
     /**
@@ -428,27 +467,104 @@ namespace rfs
       return l;
     }
 
-    /**
-     * Calculate likelihood
-     * \param[in] x_eval the evaluation point
-     * \param[out] mDist2 if not NULL, the pointed to variable will be overwritten by the 
-     * squared mahalanobis distance used to calculate the likelihood
-     */ 
-    double evalGaussianLikelihood(const typename RandomVec<nDim>::Vec &x_eval,
-				  double* mDist2 = NULL){
-      if(!isValid_Sx_det_){
-	Sx_det_ = Sx_.determinant();
-	gaussian_pdf_factor_ = sqrt( pow( 2*PI, nDim ) * Sx_det_ );
-	isValid_Sx_det_ = true;
+      /**
+       * Calculate the Gaussian likelihood of a given evaluation point, also gives normalized error, useful for calculating gradients
+       * \param[in] x_eval the evaluation point
+       * \param[out] n_error pointer to vector to store normalized error
+       * \param[out] mDist2 if not NULL, the pointed to variable will be overwritten by the
+       * squared mahalanobis distance used to calculate the likelihood
+       */
+      double
+      evalGaussianLikelihood (const RandomVec<nDim> &x_eval, Vec &n_error, double* mDist2 = NULL) {
+        if (!isValid_Sx_det_) {
+          Sx_det_ = Sx_.determinant();
+          gaussian_pdf_factor_ = sqrt(pow(2 * PI, nDim) * Sx_det_);
+          isValid_Sx_det_ = true;
+        }
+        if (!isValid_Sx_inv_) {
+          Sx_inv_ = Sx_.inverse();
+          isValid_Sx_inv_ = true;
+        }
+        e_ = x_eval.x_ - x_;
+        n_error = Sx_inv_ * e_;
+        double md2 = e_.transpose() *n_error;
+        double l = (exp(-0.5 * md2) / gaussian_pdf_factor_);
+        if (l != l) //If md2 is very large, l will become NAN;
+          l = 0;
+        if (mDist2 != NULL)
+          *mDist2 = md2;
+        return l;
       }
-      double md2 = mahalanobisDist2( x_eval );
-      double l = ( exp(-0.5 * md2 ) / gaussian_pdf_factor_ );
-      if( l != l) //If md2 is very large, l will become NAN;
-	l = 0;
-      if(mDist2 != NULL)
-	*mDist2 = md2;
-      return l;
-    }
+      /**
+       * Calculate the Gaussian log likelihood of a given evaluation point, also gives normalized error, useful for calculating gradients
+       * \param[in] x_eval the evaluation point
+       * \param[out] n_error pointer to vector to store normalized error
+       * \param[out] mDist2 if not NULL, the pointed to variable will be overwritten by the
+       * squared mahalanobis distance used to calculate the likelihood
+       */
+      double
+      evalGaussianLogLikelihood (const RandomVec<nDim> &x_eval, Vec &n_error, double* mDist2 = NULL) {
+        if (!isValid_Sx_det_) {
+          Sx_det_ = Sx_.determinant();
+          gaussian_pdf_factor_ = sqrt(pow(2 * PI, nDim) * Sx_det_);
+          isValid_Sx_det_ = true;
+        }
+        if (!isValid_Sx_inv_) {
+          Sx_inv_ = Sx_.inverse();
+          isValid_Sx_inv_ = true;
+        }
+        e_ = x_eval.x_ - x_;
+        n_error = Sx_inv_ * e_;
+        double md2 = e_.transpose() *n_error;
+        double l = -0.5 * md2 - log(gaussian_pdf_factor_);
+
+        if (mDist2 != NULL)
+          *mDist2 = md2;
+        return l;
+      }
+
+      /**
+       * Calculate likelihood
+       * \param[in] x_eval the evaluation point
+       * \param[out] mDist2 if not NULL, the pointed to variable will be overwritten by the
+       * squared mahalanobis distance used to calculate the likelihood
+       */
+      double evalGaussianLikelihood(const typename RandomVec<nDim>::Vec &x_eval,
+                                    double* mDist2 = NULL){
+        if(!isValid_Sx_det_){
+          Sx_det_ = Sx_.determinant();
+          gaussian_pdf_factor_ = sqrt( pow( 2*PI, nDim ) * Sx_det_ );
+          isValid_Sx_det_ = true;
+        }
+        double md2 = mahalanobisDist2( x_eval );
+        double l = ( exp(-0.5 * md2 ) / gaussian_pdf_factor_ );
+        if( l != l) //If md2 is very large, l will become NAN;
+          l = 0;
+        if(mDist2 != NULL)
+          *mDist2 = md2;
+        return l;
+      }
+
+      /**
+       * Calculate the log likelihood (more stable than using the log after)
+       * \param[in] x_eval the evaluation point
+       * \param[out] mDist2 if not NULL, the pointed to variable will be overwritten by the
+       * squared mahalanobis distance used to calculate the likelihood
+       */
+      double evalGaussianLogLikelihood(const typename RandomVec<nDim>::Vec &x_eval,
+                                    double* mDist2 = NULL){
+        if(!isValid_Sx_det_){
+          Sx_det_ = Sx_.determinant();
+          gaussian_pdf_factor_ = sqrt( pow( 2*PI, nDim ) * Sx_det_ );
+          isValid_Sx_det_ = true;
+        }
+        double md2 = mahalanobisDist2( x_eval );
+        double l = -0.5 * md2  - log( gaussian_pdf_factor_ );
+
+        if(mDist2 != NULL)
+          *mDist2 = md2;
+        return l;
+      }
 
     /** 
      * Sample this random vector
@@ -457,7 +573,10 @@ namespace rfs
     void sample( RandomVec<nDim> &s_sample ){
     
       Vec x_sample, indep_noise;
-
+      int threadnum=0;
+#ifdef _OPENMP
+      threadnum = omp_get_thread_num();
+#endif
       if(!isValid_Sx_L_){
 	::Eigen::LLT<Mat> cholesky( Sx_ );
 	Sx_L_ = cholesky.matrixL();
@@ -466,7 +585,7 @@ namespace rfs
 
       int n = Sx_L_.cols();
       for(int i = 0; i < n; i++){
-	indep_noise(i) = genGaussian_();
+	indep_noise(i) = gaussianGenerators_[threadnum]();
       }
       x_sample = x_ + Sx_L_ * indep_noise;
       s_sample.set( x_sample, Sx_, t_ );
@@ -480,6 +599,10 @@ namespace rfs
     void sample(){
     
       Vec x_sample, indep_noise;
+      int threadnum=0;
+#ifdef _OPENMP
+      threadnum = omp_get_thread_num();
+#endif
 
       if(!isValid_Sx_L_){
 	::Eigen::LLT<Mat> cholesky( Sx_ );
@@ -489,10 +612,18 @@ namespace rfs
     
       int n = Sx_L_.cols();
       for(int i = 0; i < n; i++){
-	indep_noise(i) = genGaussian_();
+	indep_noise(i) = gaussianGenerators_[threadnum]();
       }
       x_ += Sx_L_ * indep_noise;
 
+    }
+    /**
+     * returns true if covariance is  approximately symmetric
+     **/
+    bool checkCov(){
+      Mat t=Sx_-Sx_.transpose();
+
+      return t.isZero();
     }
 
   protected:
@@ -513,9 +644,7 @@ namespace rfs
 
     Vec e_; /**< temporary */
 
-    /** normal distribution random number generator */ 
-    static ::boost::variate_generator< ::boost::mt19937, 
-				       ::boost::normal_distribution<double> > genGaussian_;
+
 
     /** \brief Dimensionality check during initialization */
     void dimCheck(){
@@ -523,14 +652,14 @@ namespace rfs
     }
 
   };
-
+/*
   template<unsigned int nDim>
   ::boost::variate_generator< ::boost::mt19937, 
 			      ::boost::normal_distribution<double> >
   RandomVec<nDim>::genGaussian_ =
     ::boost::variate_generator< ::boost::mt19937, 
 				::boost::normal_distribution<double> >
-    (::boost::mt19937(rand()), ::boost::normal_distribution<double>());
+    (::boost::mt19937(lrand48()), ::boost::normal_distribution<double>());*/
 
 } // namespace rfs
 

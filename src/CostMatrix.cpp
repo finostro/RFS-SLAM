@@ -98,12 +98,12 @@ unsigned int CostMatrixGeneral::partition(){
   ::boost::adjacency_list< ::boost::vecS, ::boost::vecS, ::boost::undirectedS> G;
   for(int i = 0; i < nR_; i++){
     for(int j = 0; j < nC_; j++){
-      if (C_[i][j] != 0 ){
+      if (C_[i][j] > MIN_LIKELIHOOD ){
 	::boost::add_edge(i, j+nR_, G);
       }
     }
   }
-  ::boost::add_edge(nR_+nC_-1, nR_+nC_-1, G); // add edge to self so the graph has the desired number of vetices
+  ::boost::add_edge(nR_+nC_-1, nR_+nC_-1, G); // add edge to self so the graph has the desired number of vertices
 
   std::vector<int> cc_results( nR_+nC_, -1 );
   int ncc = ::boost::connected_components(G, &cc_results[0]);
@@ -125,17 +125,21 @@ unsigned int CostMatrixGeneral::partition(){
 
   combinedZeroPartition_ = -1;
   int nMergedZeroPartitions = 0; 
-  for(int n = 0; n < ncc; n++){
+  for(int n = 0; n < ncc-nMergedZeroPartitions; n++){
     if(components_i[n].size() == 0 || components_j[n].size() == 0){
       
       if(combinedZeroPartition_ == -1){
 	combinedZeroPartition_ = n;
-      }else if(components_i[n].size() != 0){
+      }else {if(components_i[n].size() != 0){
 	components_i[combinedZeroPartition_].push_back(components_i[n][0]);
 	nMergedZeroPartitions++;
       }else{
 	components_j[combinedZeroPartition_].push_back(components_j[n][0]);
 	nMergedZeroPartitions++;
+      }
+      components_i[n].swap(components_i[ncc-nMergedZeroPartitions]);
+      components_j[n].swap(components_j[ncc-nMergedZeroPartitions]);
+      n--;
       }
 
     }

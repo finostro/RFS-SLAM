@@ -117,6 +117,18 @@ namespace rfs
     /** Default destructor */
     ~Landmark(){};
 
+	/**
+	 * Assignment operator
+	 * \param[in] rhs the right-hand-side from which data is copied
+	 */
+
+	Landmark& operator=(const Landmark& rhs) {
+		this->RandomVec<dim>::operator =(rhs);
+		return *this;
+	}
+
+
+
     /** 
      * Set the type of a component of Vec 
      * \param[in] i the component index

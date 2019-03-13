@@ -185,7 +185,14 @@ public:
    */
   bool resample( unsigned int n = 0, bool forceResample = false );
 
- 
+  /**
+   * Getter for the measurement vector.
+   *
+   * \return the measurement vector
+   */
+	const std::vector<TMeasure>& getMeasurements() const {
+		return measurements_;
+	}
 
 protected:
 
@@ -327,6 +334,7 @@ void ParticleFilter<ProcessModel, MeasurementModel, ParticleExtraData>::propagat
 										   bool maintainTrajectory ){
 
     TPose x_km, x_k;
+#pragma omp parallel for
     for( int i = 0 ; i < nParticles_ ; i++ ){
       if(maintainTrajectory){
 	pParticle p_km( new Particle<TPose, ParticleExtraData>() );

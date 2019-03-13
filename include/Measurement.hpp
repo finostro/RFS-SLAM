@@ -56,6 +56,9 @@ namespace rfs{
   /** \brief Definition for 2d odometry */
   typedef Pose < 3, 2 ,1 > Odometry2d;
 
+  /** \brief Definition for 6d odometry using quaternion */
+  typedef Pose < 7, 3 ,4 > Odometry6d;
+
 }
 
 #endif

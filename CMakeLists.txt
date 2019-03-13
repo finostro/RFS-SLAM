@@ -22,9 +22,9 @@ message(STATUS "RFSSLAM Version ${RFSSLAM_VERSION}")
 # Compiler settings
 # Note: to change compiler, use for example...
 # cmake -D CMAKE_C_COMPILER=gcc CMAKE_CXX_COMPILER=c++ .
-SET(CMAKE_C_COMPILER "gcc")
-SET(CMAKE_CXX_COMPILER "g++")
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native ")
+#SET(CMAKE_C_COMPILER "gcc")
+#SET(CMAKE_CXX_COMPILER "g++")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -std=c++11 ")
 #MESSAGE("CMAKE_CXX_COMPILTER_ID = ${CMAKE_CXX_COMPILER_ID}")
 IF(APPLE)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-ignored-qualifiers ") # For Eigen const warnings
@@ -42,8 +42,18 @@ ELSE()
   SET(USE_OPENMP ON CACHE BOOL "Use OpenMP to compile multithreaded versions of SLAM algorithms.")
 ENDIF()
 IF(USE_OPENMP)
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp ")
+  IF("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp=libomp ")
+  ELSE()
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp ")
+  ENDIF()
 ENDIF()
+
+#Threads
+
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package(Threads REQUIRED)
 
 # Boost
 FIND_PACKAGE(Boost COMPONENTS timer chrono system filesystem graph program_options REQUIRED)
@@ -56,6 +66,10 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # Eigen
 FIND_PACKAGE(Eigen REQUIRED)
+
+# Google Ceres
+
+FIND_PACKAGE(Ceres REQUIRED)
 
 # Google perftools
 FIND_PACKAGE(Perftools)
@@ -81,6 +95,10 @@ IF(Perftools_FOUND)
   ENDIF()
 ENDIF()
 
+# VTK visualization
+find_package(VTK REQUIRED)
+include(${VTK_USE_FILE})
+
 # GTest
 # If using Ubuntu apt-get to install, go to /usr/src/gtest,
 # run cmake . and make  . After compiling , 
@@ -104,6 +122,8 @@ INCLUDE_DIRECTORIES(src)
 INCLUDE_DIRECTORIES(test)
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${EIGEN_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${CERES_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${GPERFTOOLS_INCLUDE_DIRS})
 IF(GTEST_FOUND)
   INCLUDE_DIRECTORIES(${GTEST_INCLUDE_DIRS})
 ENDIF()
@@ -115,12 +135,17 @@ ADD_LIBRARY(rfsslam
   src/Frame.cpp
   src/ProcessModel_Odometry1D.cpp 
   src/ProcessModel_Odometry2D.cpp
+  src/ProcessModel_Odometry6D.cpp
   src/ProcessModel_Ackerman2D.cpp
   src/MeasurementModel_Rng1D.cpp
   src/MeasurementModel_RngBrg.cpp
+  src/MeasurementModel_RngBrg_amplitude.cpp
   src/MeasurementModel_XY.cpp
+  src/MeasurementModel_6D.cpp
+  src/Visualizer6D.cpp
   src/MeasurementModel_VictoriaPark.cpp
-  src/KalmanFilter_RngBrg.cpp
+  src/KalmanFilter_RngBrg_amplitude.cpp
+  src/KalmanFilter.cpp
   src/HungarianMethod.cpp
   src/MurtyAlgorithm.cpp
   src/BruteForceAssignment.cpp
@@ -128,11 +153,26 @@ ADD_LIBRARY(rfsslam
   src/PermutationLexicographic.cpp
   src/MatrixPermanent.cpp
   src/misc/memProfile.cpp
+  src/GaussianGenerators.cpp
   )
 TARGET_LINK_LIBRARIES(rfsslam ${Boost_LIBRARIES})
 
 ADD_EXECUTABLE(rbphdslam2dSim src/rbphdslam2dSim.cpp)
 TARGET_LINK_LIBRARIES(rbphdslam2dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+
+ADD_EXECUTABLE(rbphdslam2dCityTrees10000 src/rbphdslamCityTrees10000.cpp)
+TARGET_LINK_LIBRARIES(rbphdslam2dCityTrees10000 ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+
+
+
+ADD_EXECUTABLE(rbphdslam6dSim src/rbphdslam6dSim.cpp)
+TARGET_LINK_LIBRARIES(rbphdslam6dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} ${VTK_LIBRARIES} Threads::Threads)
+
+
+ADD_EXECUTABLE(rbcbmemberslam2dSim src/rbcbmemberslam2dSim.cpp)
+TARGET_LINK_LIBRARIES(rbcbmemberslam2dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+
+
 
 ADD_EXECUTABLE(fastslam2dSim src/fastslam2dSim.cpp)
 TARGET_LINK_LIBRARIES(fastslam2dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY}) 
@@ -153,6 +193,10 @@ ADD_EXECUTABLE(convertLogFiles src/convertLogFiles.cpp)
 TARGET_LINK_LIBRARIES(convertLogFiles ${Boost_LIBRARIES})
 
 IF(GTEST_FOUND)
+
+  #ADD_EXECUTABLE(unitTest test/test.cpp src/Measurement.cpp src/Pose.cpp)
+  #TARGET_LINK_LIBRARIES(unitTest ${GTEST_LIBRARIES} ${Boost_LIBRARIES} pthread TimeStamp MeasurementModel ProcessModel LinearAssignment)
+  #ADD_TEST(unitTest bin/unitTest)
   
   ADD_EXECUTABLE(spatialIndexTreeTest test/SpatialIndexTreeTest.cpp)
   TARGET_LINK_LIBRARIES(spatialIndexTreeTest ${GTEST_LIBRARIES} ${Boost_LIBRARIES} rfsslam pthread)
@@ -179,6 +223,16 @@ TARGET_LINK_LIBRARIES(linearAssignment_MurtyAlgorithm ${Boost_LIBRARIES} rfsslam
 ADD_EXECUTABLE(ospaError src/examples/ospaError.cpp)
 TARGET_LINK_LIBRARIES(ospaError ${Boost_LIBRARIES} rfsslam)
 
+
+ADD_EXECUTABLE(ospaErrorFromFile src/examples/ospaErrorFromFile.cpp)
+TARGET_LINK_LIBRARIES(ospaErrorFromFile ${Boost_LIBRARIES} rfsslam)
+
+ADD_EXECUTABLE(cpu_timer_test src/tests/cpu_timer_info.cpp)
+TARGET_LINK_LIBRARIES(cpu_timer_test ${Boost_LIBRARIES})
+
+ADD_EXECUTABLE(jcbb_test src/tests/jcbb_test.cpp)
+TARGET_LINK_LIBRARIES(jcbb_test ${Boost_LIBRARIES} rfsslam)
+
 set_target_properties(linearAssignment_CostMatrixPartitioning
 	linearAssignment_LexicographicOrdering
 	linearAssignment_MurtyAlgorithm 
@@ -187,6 +241,15 @@ set_target_properties(linearAssignment_CostMatrixPartitioning
 	PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples"
 )
+
+IF(GTEST_FOUND)
+  set_target_properties(cpu_timer_test jcbb_test
+    spatialIndexTreeTest
+    matrixPermanentTest
+    PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/test"
+    )
+ENDIF()
 
 
 # Installation
@@ -201,7 +264,6 @@ CONFIGURE_FILE(rfsslam-config-version.cmake.in "rfsslam-config-version.cmake" @O
 INSTALL(FILES ${CMAKE_BINARY_DIR}/rfsslam-config.cmake ${CMAKE_BINARY_DIR}/rfsslam-config-version.cmake
   DESTINATION /usr/local/lib/rfsslam)
 
-FILE(GLOB headerFiles "include/*.hpp")
-INSTALL(FILES ${headerFiles}
-  DESTINATION /usr/local/include/rfsslam
+INSTALL(DIRECTORY include/ DESTINATION /usr/local/include/rfsslam
+  FILES_MATCHING PATTERN "*.hpp"
   PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)

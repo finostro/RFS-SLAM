@@ -45,12 +45,12 @@ import matplotlib.animation as anim
 from matplotlib.patches import Ellipse, Circle
 from matplotlib import transforms
 import matplotlib.ticker as ticker   
-
+from time import sleep
 matplotlib.rcParams.update({'font.size': 20})
 
 saveMovie = False;
 saveFig = True
-timestepStart = 2950
+timestepStart = 0
 
 nLandmarksDrawMax = 500;
 nMeasurementsDrawMax = 500;
@@ -148,8 +148,9 @@ while p[0] == p_t:
     p_idx += 1;
 px_best = gtPose_x * 0;
 py_best = gtPose_y * 0;
+mapline = estMapFileHandle.readline()
+m = np.fromstring(mapline,dtype=float,sep=' ');
 
-m = np.fromfile(estMapFileHandle, count=8, sep=" ", dtype=float);
 
 z = np.fromfile(measurementFileHandle, count=3, sep=" ", dtype=float);
 
@@ -182,6 +183,7 @@ particles, = plt.plot([], [], 'b.');
 xLim = plt.getp(ax, 'xlim');
 yLim = plt.getp(ax, 'ylim');
 txt = plt.text(xLim[1]-1, yLim[1]-1, " ");
+gt_i=0;
 
 def animateInit():
 
@@ -206,8 +208,8 @@ def animate(i):
     global p;
     global m;
     global z;
-
-    currentTime = i * 0.1;
+    global gt_i;
+    currentTime = p[0];
     drawnObjects = [];
 
     # Time
@@ -240,11 +242,13 @@ def animate(i):
 
 
     # Groundtruth 
-    gtPoseCurrentPos.set_xdata(gtPose_x[i]);
-    gtPoseCurrentPos.set_ydata(gtPose_y[i]); # Append to drawn objects later so it shows above measurements
-    gtPoseHead = [gtPose_x[i] + 0.3*np.cos(gtPose_r[i]), gtPose_y[i] + 0.3*np.sin(gtPose_r[i]) ];
-    gtPoseCurrentDir.set_xdata([gtPose_x[i], gtPoseHead[0]]);
-    gtPoseCurrentDir.set_ydata([gtPose_y[i], gtPoseHead[1]]); # Append to drawn objects later so it shows above measurements
+    while(abs(gtPose_t[gt_i] - currentTime) > 1e-12):
+        gt_i=gt_i+1
+    gtPoseCurrentPos.set_xdata(gtPose_x[gt_i]);
+    gtPoseCurrentPos.set_ydata(gtPose_y[gt_i]); # Append to drawn objects later so it shows above measurements
+    gtPoseHead = [gtPose_x[gt_i] + 0.3*np.cos(gtPose_r[gt_i]), gtPose_y[gt_i] + 0.3*np.sin(gtPose_r[gt_i]) ];
+    gtPoseCurrentDir.set_xdata([gtPose_x[gt_i], gtPoseHead[0]]);
+    gtPoseCurrentDir.set_ydata([gtPose_y[gt_i], gtPoseHead[1]]); # Append to drawn objects later so it shows above measurements
 
     gtPoseHandle.set_data(gtPose_x, gtPose_y);
     gtMapHandle.set_data(gtMap_x, gtMap_y);
@@ -277,7 +281,10 @@ def animate(i):
         if round(m[1]) == round(p_idx_maxWeight):
 
             cov = np.array([ [ m[4], m[5] ], [ m[5], m[6] ] ]);
-            w = m[7];
+            if len(m)==9:
+              w = m[7]*m[8];
+            else:
+              w = m[7]
             eVal, eVec = np.linalg.eig(cov);
             eVal = eVal.real;
             a1 = 5*np.sqrt(eVal[0]); # Assume this is semi-major axis first
@@ -301,8 +308,10 @@ def animate(i):
             drawnObjects.append(landmarks[m_idx]);
             m_idx += 1;
 
-        m = np.fromfile(estMapFileHandle, count=8, sep=" ", dtype=float);
 
+
+        mapline = estMapFileHandle.readline()
+        m = np.fromstring(mapline,dtype=float,sep=' ');
     while landmarks[m_idx].height != 0:
         landmarks[m_idx].set_alpha(0);
         landmarks[m_idx].center = (0, 0);
@@ -313,9 +322,9 @@ def animate(i):
     # Measurements
     nZ = 0;
     while z.any() and abs(z[0] -  currentTime) < 1e-12:
-        z_dir = gtPose_r[i] + z[2];
-        z_end = [gtPose_x[i] + z[1]*np.cos(z_dir), gtPose_y[i] + z[1]*np.sin(z_dir) ];
-        measurements[nZ].set_data([gtPose_x[i], z_end[0]], [gtPose_y[i], z_end[1]]);
+        z_dir = gtPose_r[gt_i] + z[2];
+        z_end = [gtPose_x[gt_i] + z[1]*np.cos(z_dir), gtPose_y[gt_i] + z[1]*np.sin(z_dir) ];
+        measurements[nZ].set_data([gtPose_x[gt_i], z_end[0]], [gtPose_y[gt_i], z_end[1]]);
         drawnObjects.append(measurements[nZ]);
         z = np.fromfile(measurementFileHandle, count=3, sep=" ", dtype=float);
         nZ += 1;
@@ -328,11 +337,11 @@ def animate(i):
     drawnObjects.append(gtPoseHandle);
     drawnObjects.append(gtMapHandle);
     drawnObjects.append(particles);
-
+    sleep(0.0)
     return drawnObjects;
 
 animation = anim.FuncAnimation(plt.figure(1), animate, np.arange(timestepStart, len(gtPose_t)), interval=1, 
-                               init_func=animateInit, blit=True, repeat=False);
+                               init_func=animateInit, blit=True, repeat=True);
 if saveMovie:
     FFMpegWriter = matplotlib.animation.writers['ffmpeg']
     animation.save(estimateMovieFile, writer=FFMpegWriter(fps = 30))

@@ -13,14 +13,14 @@ when any related work is published. Any feedback will be appreciated.
 
 * License: New BSD
 * Version: 1.2.0
-* Compiles with gcc on Linux (Ubuntu 13.04, 13.10, 14.04)
+* Compiles with gcc on Linux (Ubuntu 16.04 , 18.04, 18.10)
 * Compiles with llvm on Mac (OSX 10.10)
 
 ### Installation ###
 
 #### Source ####
 
-Obtain from git repository: `https://kykleung@bitbucket.org/kykleung/phdfilter.git`
+Obtain from git repository: `https://bitbucket.org/finostroza/rfs-slam.git`
 
 #### C++ Library Dependencies ####
 
@@ -32,11 +32,13 @@ Obtain from git repository: `https://kykleung@bitbucket.org/kykleung/phdfilter.g
     * graph
     * program_options
 * Eigen (version 3.0.0 minimum)
+* Vtk (tested on vtk 6.2)
 * gtest (optional)
+* OpenMP (optional)
   
     If using Ubuntu apt-get to install: 
 
-    1. `sudo apt-get install libgtest-dev`
+    1. `sudo apt install libgtest-dev`
     2. `cd /usr/src/gtest`
     3. `cmake .`
     4. `make`
@@ -149,9 +151,8 @@ At the moment, profiling does not provide meaningful results on OS X machines du
     - cmake now generates rfsslam-config.cmake to enable find(rfsslam) 
       from other projects
 
-* Latest (1.2.0)
-    - Implementation of joint compatibility branch and bound (JCBB) 
-      for data association in vector-based methods
+* 1.2.0
+    - CB-MeMBer filter implemented
     - Config files now use xml format to removed dependency on the libconfig library
     - OSX compatible when compiling with Clang/LLVM
     - Multi-threaded versions of SLAM algorithms using OpenMP
@@ -165,18 +166,17 @@ At the moment, profiling does not provide meaningful results on OS X machines du
 ### Future Work ###
 
 - Cardinalized Probability Hypothesis Density (CPHD) filter
-- Cardinality Balanced Multi-Bernoulli filter
 - Reimplementation of the data stuctures for Gaussian mixtures (map/landmarks)
 
 ### Contact ###
 
 * Maintainers:
-    * Keith Leung (kykleung[at]gmail.com)
-    * Felipe Inostroza
+    
+    * Felipe Inostroza (finostro[at]ug.uchile.cl)
 
 * Contributors:
     * Daniel Luhr
-
+    * Keith Leung (kykleung[at]gmail.com)
 
 ### License ###
 

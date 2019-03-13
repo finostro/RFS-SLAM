@@ -32,6 +32,7 @@
 #define KALMANFILTER_HPP
 
 #include "MeasurementModel.hpp"
+#include "MeasurementModel_RngBrg.hpp"
 #include "ProcessModel.hpp"
 #include <vector>
 
@@ -151,9 +152,17 @@ public:
 				   ::Eigen::Matrix< double, TMeasurement::Vec::RowsAtCompileTime, 1> &z_act,
 				   ::Eigen::Matrix< double, TMeasurement::Vec::RowsAtCompileTime, 1> &z_innov);
 
-
+  
+  struct Config{ /**< Configuration data that can be defined in template specializations */
+    /** If positive, the innovation threshold above which an update is not processed for stability reasons. */
+    double rangeInnovationThreshold_; 
+    /** If positive, the innovation threshold above which an update is not processed for stability reasons. */
+    double bearingInnovationThreshold_;
+  }config;
 protected:
 
+  
+  
   MeasurementModelType *pMeasurementModel_;
   ProcessModelType *pProcessModel_;
  
@@ -224,7 +233,7 @@ correct(const TPose &pose, const TMeasurement &measurement,
   ::Eigen::Matrix <double, TLandmark::Vec::RowsAtCompileTime, 1> m_updated; /**< mean - updated */
   ::Eigen::Matrix <double, TLandmark::Vec::RowsAtCompileTime, TLandmark::Vec::RowsAtCompileTime> P; /**< covariance */
   ::Eigen::Matrix <double, TLandmark::Vec::RowsAtCompileTime, TLandmark::Vec::RowsAtCompileTime> P_updated; /**< covariance - updated */
-  RandomVec< TMeasurement::Vec::RowsAtCompileTime > innov; /**< RandomVec form of innovation */
+
 
   
   if(!pMeasurementModel_->measure( pose , landmark_current , measurement_exp , &H))
@@ -241,15 +250,15 @@ correct(const TPose &pose, const TMeasurement &measurement,
   P_updated = ( I - K * H ) * P;
   P_updated = ( P_updated + P_updated.transpose() ) / 2; // make sure covariance is symetric
   m_updated = m + K * z_innov; 
-
+  assert(!m_updated.isZero());
   landmark_updated.set(m_updated, P_updated); 
   
   if(zLikelihood != NULL){
-    innov.set(z_exp, S);
+
     if(mahalanobisDist2 != NULL)
-      *zLikelihood = innov.evalGaussianLikelihood( measurement, mahalanobisDist2 );   
+      *zLikelihood = measurement_exp.evalGaussianLikelihood( measurement, mahalanobisDist2 );
     else
-      *zLikelihood = innov.evalGaussianLikelihood( measurement ); 
+      *zLikelihood = measurement_exp.evalGaussianLikelihood( measurement );
     if(*zLikelihood != *zLikelihood) // When likelihood is so small that it becomes NAN
       *zLikelihood = 0;  
   }
@@ -279,7 +288,7 @@ correct(const TPose &pose,
   ::Eigen::Matrix <double, TLandmark::Vec::RowsAtCompileTime, 1> m_updated; /**< mean - updated */
   ::Eigen::Matrix <double, TLandmark::Vec::RowsAtCompileTime, TLandmark::Vec::RowsAtCompileTime> P; /**< covariance */
   ::Eigen::Matrix <double, TLandmark::Vec::RowsAtCompileTime, TLandmark::Vec::RowsAtCompileTime> P_updated; /**< covariance - updated */
-  TMeasurement innov; /**< TMeasurement form of innovation */
+
 
  
   if(!pMeasurementModel_->measure( pose , landmark_current , measurement_exp , &H)){
@@ -314,13 +323,13 @@ correct(const TPose &pose,
 	m_updated = m + K * z_innov;
 	landmark_updated[i].set(m_updated, P_updated);
 	if(zLikelihood != NULL){
-	  innov.set(z_exp, S);
+
 	  if(mahalanobisDist2 != NULL){
-	    zl = innov.evalGaussianLikelihood( measurement[i], &md2 );
+	    zl = measurement_exp.evalGaussianLikelihood( measurement[i], &md2 );
 	    mahalanobisDist2->at(i) = md2;
 	  }
 	  else
-	    zl = innov.evalGaussianLikelihood( measurement[i] ); 
+	    zl = measurement_exp.evalGaussianLikelihood( measurement[i] );
 	  if(zl != zl) // When likelihood is so small that it becomes NAN
 	    zl = 0;
 	  zLikelihood->at(i) = zl;
@@ -350,5 +359,31 @@ calculateInnovation(::Eigen::Matrix< double, TMeasurement::Vec::RowsAtCompileTim
   return true;
 }
 
+  // KalmanFilter Specialization for range bearing measurement model
+
+  // 
+  
+  
+
+  template<>
+  KalmanFilter<StaticProcessModel<Landmark2d>, MeasurementModel_RngBrg>::KalmanFilter();
+  
+  template<>
+  KalmanFilter<StaticProcessModel<Landmark2d>, MeasurementModel_RngBrg>::KalmanFilter(StaticProcessModel<Landmark2d> *pProcessModel,
+										      MeasurementModel_RngBrg *pMeasurementModel);
+  template<>
+  bool KalmanFilter<StaticProcessModel<Landmark2d>, MeasurementModel_RngBrg>::calculateInnovation(TMeasurement::Vec &z_exp, TMeasurement::Vec &z_act, TMeasurement::Vec &z_innov);
+
+  template<>
+  KalmanFilter<StaticProcessModel<Landmark2d>, MeasurementModel_RngBrg>::KalmanFilter();
+  
+  template<>
+  KalmanFilter<StaticProcessModel<Landmark2d>, MeasurementModel_RngBrg>::KalmanFilter(StaticProcessModel<Landmark2d> *pProcessModel,
+										      MeasurementModel_RngBrg *pMeasurementModel);
+  template<>
+  bool KalmanFilter<StaticProcessModel<Landmark2d>, MeasurementModel_RngBrg>::calculateInnovation(TMeasurement::Vec &z_exp, TMeasurement::Vec &z_act, TMeasurement::Vec &z_innov);
+
+  typedef KalmanFilter<StaticProcessModel<Landmark2d>, MeasurementModel_RngBrg> KalmanFilter_RngBrg;
+  
 }
 #endif

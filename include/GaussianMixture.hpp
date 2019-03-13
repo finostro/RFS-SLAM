@@ -77,7 +77,7 @@ public:
    * Memory is allocated for creating copies of Gaussians for the other GaussianMixture.
    * \param[in,out] other the other Gaussian mixture to which data is copied to
    */
-  void copyTo( GaussianMixture *other);
+  void copyTo( GaussianMixture *other) const;
 
   /** 
    * Add a Gaussian to this GaussianMixture
@@ -89,6 +89,24 @@ public:
    * \return number of Gaussians in the mixture
    */
   unsigned int addGaussian( pLandmark p, double w = 1, bool allocateMem = false);
+
+  /**
+   * Add a Gaussian Mixture to this GaussianMixture, removing them from the input mixture
+   * \param[in] other reference to the Gaussian Mixture to add (its components are removed)
+   * \param[in] w Multiply all GM weights by this value before adding them.
+   *
+   * \return number of Gaussians in the mixture
+   */
+  unsigned int addGM( GaussianMixture& other, double w = 1);
+
+  /**
+   * Multiply all weights in this GM by a constant value
+   *
+   * \param[in] w Multiply all GM weights by this value
+   *
+   * \return number of Gaussians in the mixture
+   */
+  void multiplyWeights(double w);
 
   /** 
    * Remove a Gaussian from the mixture 
@@ -185,6 +203,11 @@ public:
    */
   void sortByWeight();
 
+  /**
+   * Normalize the weights in the Gaussian Mixture so they add up to 1.
+   */
+  void normalizeWeights();
+
 protected:
 
   int n_; /**< number of Gaussians in this GaussianMixture */
@@ -253,13 +276,20 @@ GaussianMixture<Landmark>::~GaussianMixture(){
 }
 
 template< class Landmark >
-void GaussianMixture<Landmark>::copyTo( GaussianMixture *other){
+void GaussianMixture<Landmark>::copyTo( GaussianMixture *other) const{
+  for(int i = 0 ; i < other->gList_.size() ; i++){
+    if(other->gList_[i].landmark != NULL){
+      delete other->gList_[i].landmark;
+    }
+  }
   other->n_ = n_;
   other->gList_ = gList_;
   for(int i = 0; i < gList_.size(); i++){
-    Landmark* lmkCopy = new Landmark;
-    *lmkCopy = *(gList_[i].landmark);
-    other->gList_[i].landmark = lmkCopy; 
+    if(gList_[i].landmark != NULL){
+      Landmark* lmkCopy = new Landmark;
+      *lmkCopy = *(gList_[i].landmark);
+      other->gList_[i].landmark = lmkCopy;
+    }
   }
   other->isSorted_ = isSorted_;
 }
@@ -281,6 +311,28 @@ unsigned int GaussianMixture<Landmark>::addGaussian( pLandmark p, double w,
   gList_.push_back(g);
   n_++;
   return n_;
+}
+
+template< class Landmark >
+unsigned int GaussianMixture<Landmark>::addGM( GaussianMixture& other,  double w){
+  isSorted_ = false;
+
+
+  for(int i=0; i<other.gList_.size();i++){
+    other.gList_[i].weight*=w;
+  }
+
+  gList_.insert(gList_.end(),other.gList_.begin(),other.gList_.end());
+  n_+=other.n_;
+  other.gList_.clear();
+  other.n_=0;
+  return n_;
+}
+template< class Landmark >
+void GaussianMixture<Landmark>::multiplyWeights(double w){
+  for(int i=0; i<gList_.size();i++){
+      gList_[i].weight*=w;
+    }
 }
 
 template< class Landmark >
@@ -527,7 +579,18 @@ void GaussianMixture<Landmark>::sortByWeight(){
     isSorted_ = true;
   }
 }
+template< class Landmark >
+void GaussianMixture<Landmark>::normalizeWeights(){
+  double sum = 0;
+  for(int i = 0; i < n_; i++){
+    sum += gList_[i].weight;
+  }
+  for(int i = 0; i < n_; i++){
+    gList_[i].weight = gList_[i].weight/sum;
+  }
 
+
+}
 template< class Landmark >
 bool GaussianMixture<Landmark>::weightCompare(Gaussian a, Gaussian b){
   return a.weight > b.weight;

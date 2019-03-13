@@ -14,7 +14,7 @@
   </dataset>
 
   <logging>
-    <logResultsToFile>1</logResultsToFile>
+    <logResultsToFile>0</logResultsToFile>
     <logTimingToFile>1</logTimingToFile>
     <logDirPrefix>data/VictoriaPark/rbphdslam_clutter/results/</logDirPrefix>
   </logging>

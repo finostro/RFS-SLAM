@@ -39,9 +39,9 @@ MotionModel_Odometry2d::MotionModel_Odometry2d( Pose2d::Mat &Q ) : ProcessModel(
 MotionModel_Odometry2d::~MotionModel_Odometry2d(){}
 
 void MotionModel_Odometry2d::step(  Pose2d &s_k, 
-				   Pose2d &s_km, 
-				   Odometry2d &input_k, 
-				   TimeStamp const &dT ){
+                                    const Pose2d &s_km,
+                                    const Odometry2d &input_k,
+				   TimeStamp const &dT , Pose2d::Mat *H) const{
  
 
   Pose2d::Vec x_k_i_;       /* \f[ \begin{bmatrix} x \\ y \\ \theta \end{bmatrix}_{k} \f]*/
@@ -58,7 +58,10 @@ void MotionModel_Odometry2d::step(  Pose2d &s_k,
   Eigen::Vector2d dp_k_km_; /* translation input */
   double dtheta_k_km_;      /* rotation input */
   Eigen::Matrix2d C_k_km_;  /* rotation matrix from odometry input */
- 
+
+  Pose2d::Mat zero;
+  zero.setZero();
+
   /* State at k-1 */
   TimeStamp t_km;
   s_km.get(x_km_i_, t_km);
@@ -85,6 +88,10 @@ void MotionModel_Odometry2d::step(  Pose2d &s_k,
   theta_k_ = atan2( C_k_i_(0, 1), C_k_i_(0, 0) );
   x_k_i_.head(2) = p_k_i_;
   x_k_i_(2) = theta_k_;
-  s_k.set(x_k_i_, t_k);
+  s_k.set(x_k_i_, zero, t_k);
+
+  if (H != NULL){
+    H->setIdentity();
+  }
 }
 

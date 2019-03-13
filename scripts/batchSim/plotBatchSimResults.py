@@ -49,8 +49,6 @@ matplotlib.rcParams['axes.unicode_minus'] = False
 #matplotlib.rcParams['text.usetex'] = True
 #plt.rc('text', usetex=True)
 
-#matplotlib.rcParams.update({'font.size': 14})
-
 import matplotlib.pyplot as plt
 import matplotlib.animation as anim
 from matplotlib.patches import Ellipse, Circle
@@ -131,7 +129,7 @@ ax.plot_trisurf(X, Y, Z, cmap=cm.coolwarm, linewidth=0, vmin=0, vmax=50)
 ax.set_zlim3d(0, 50)
 ax.set_xlabel("Prob. of detection")
 ax.set_ylabel("log clutter intensity")
-ax.set_zlabel(r"Avg. landmark position error [m]")
+ax.set_zlabel(r"Avg. landmark position error")
 if(args.saveFig):
     plt.savefig("batch_map_error.pdf", format='pdf', bbox_inches='tight')
 
