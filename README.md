@@ -88,6 +88,16 @@ Documentation will be generated in `doc/` directory.
     - Config: cfg/mhfastslam2dSim.xml
     - Run: `bin/fastslam2dSim`
 
+* CB-MeMBer SLAM on 2-D Simulation
+    - Source: src/rbcbmemberslam2dSim.cpp
+    - Config: cfg/rbcbmemberslam2dSim.xml
+    - Run: `bin/rbcbmemberslam2dSim`
+
+*  Rao-Blackwellized Probability Hypothesis Density (RB-PHD) SLAM 6-D Simulation
+    - Source: src/rbcbmemberslam6dSim.cpp
+    - Config: cfg/rbcbmemberslam6dSim.xml
+    - Run: `bin/rbcbmemberslam6dSim`
+
 * RB-PHD SLAM on the Victoria Park dataset
     - Source: src/rbphdslam_VictoriaPark.cpp
     - Config: cfg/rbphdslam_VictoriaPark.xml and cfg/rbphdslam_VictoriaPark_artificialClutter.xml
