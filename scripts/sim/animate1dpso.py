@@ -257,7 +257,7 @@ def animate(i):
         p =np.fromstring(poseLine,dtype=float,sep=' ');
         nparticle = nparticle + 1
     axMap.set_ylim([-2.5 -measurements_i[len(measurements_x)-1] , nparticle])
-    #axMap.set_xlim([-10,10])
+    axMap.set_xlim([-10,10])
     #print('traj ' + str(nparticle) + ' i ' + str(i) + '  p   '+ str(p))
     bestPoseHandle.set_data(trajectories[bestparticle].get_xdata() , trajectories[bestparticle].get_ydata())
     nparticle=0;
@@ -290,7 +290,7 @@ def animate(i):
 
     return drawnObjects;
 print(len(drPose_t))
-animation = anim.FuncAnimation(plt.figure(1), animate, np.linspace(timestepStart, final_iteration , final_iteration, dtype=int), interval=1,
+animation = anim.FuncAnimation(plt.figure(1), animate, np.linspace(timestepStart, final_iteration , final_iteration-timestepStart, dtype=int), interval=1,
                                init_func=animateInit, blit=True,  repeat=False);
 if saveMovie:
     FFMpegWriter = matplotlib.animation.writers['ffmpeg']

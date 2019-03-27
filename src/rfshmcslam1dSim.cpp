@@ -115,8 +115,11 @@ public:
 		initMapProb_ = pt.get<double>("config.optimizer.initMapProb");
 
 
+		hmcslam_->config.temp = pt.get<double>("config.optimizer.initTemp");
+		tempReduceFactor_ = pt.get<double>("config.optimizer.reduceFactor");
 		hmcslam_->config.K = pt.get<int>("config.optimizer.K");
-		hmcslam_->config.epsilon = pt.get<double>("config.optimizer.epsilon");
+
+
 		hmcslam_->config.m = pt.get<double>("config.optimizer.m");
 		optimizeEveryIterations_ = pt.get<int>("config.optimizer.optimizeIter");
 
@@ -524,6 +527,10 @@ public:
 		// run the optimization process
 		for (iteration++; iteration < maxiter_; iteration++) {
 
+			if (iteration % 100 == 0) {
+				hmcslam_->config.temp *=tempReduceFactor_;
+			}
+
 
 			hmcslam_->evaluateLikelihoods(particles);
 			hmcslam_->reversibleJumpHMC(particles);
@@ -579,11 +586,12 @@ public:
 				}
 
 			}
-
+			std::cout << "iteration:"  << iteration << "  likelihood: "<< hmcslam_->getBestParticle(particles)->bestLikelihood << "\n";
 		}
 
 		// measure ground truth likelihood!
 		particles.at(0).landmarks.resize(groundtruth_landmark_.size());
+		particles.at(0).landmarks_gradient.resize(groundtruth_landmark_.size());
 		for(int i=0; i< groundtruth_landmark_.size() ; i++){
 			particles.at(0).landmarks[i] = groundtruth_landmark_[i].get();
 		}
@@ -640,6 +648,7 @@ private:
 	double ospa_c_;
 	double initMapProb_,Pbirth_,Pdeath_;
 	int maxiter_;
+	double tempReduceFactor_;
 
 	double pNoiseInflation_;
 	double zNoiseInflation_;

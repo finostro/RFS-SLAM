@@ -98,7 +98,8 @@ public:
 
 		int K; /**< Number of timesteps to integrate with leapfrog */
 
-		double epsilon; /**< integration time for leapfrog simulation */
+		double temp; /**< temperature  used to tune how greedy the algorithm is*/
+
 		double Pb; /**< birth move probability */
 		double Pd; /**< Death move probability  note the HMC move probability is 1-Pd-Pb*/
 
@@ -294,12 +295,13 @@ RFSHMCSLAM<RobotProcessModel, MeasurementModel>::getBestParticle(std::vector<TPa
 	double maxlikelihood = -std::numeric_limits<double>::infinity();
 	double maxi = -1;
 	for (int i = 0; i < particles.size(); i++) {
-		if (maxlikelihood > particles[i].currentLikelihood) {
+		if (maxlikelihood < particles[i].bestLikelihood) {
 			maxi = i;
-			maxlikelihood = particles[i].currentLikelihood;
+			maxlikelihood = particles[i].bestLikelihood;
 		}
 
 	}
+
 	return &(particles[maxi]);
 }
 
@@ -389,6 +391,7 @@ void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::initTrajectories(std::vect
 		particles[i].trajectory_gradient.resize(inputs_.size() + 1);
 		particles[i].inputs.resize(inputs_.size());
 		particles[i].inputs_momentum.resize(inputs_.size());
+		particles[i].trajectory[0].setZero();
 		for (int k = 0; k < inputs_.size(); k++) {
 			TimeStamp dT = time_[k+1] -time_[k];
 			TPose prePose(particles[i].trajectory[k],time_[k]), postPose;
@@ -481,6 +484,11 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelih
 		particle.trajectory_gradient[k] -= pose_process_gradient;
 		particle.trajectory_gradient[k - 1] += pose_process_gradient;
 
+	}
+	if (particle.currentLikelihood > particle.bestLikelihood){
+		particle.bestTrajectory = particle.trajectory;
+		particle.bestLikelihood = particle.currentLikelihood;
+		particle.bestLandmarks = particle.landmarks;
 	}
 
 	/*
@@ -799,11 +807,11 @@ template<class RobotProcessModel, class MeasurementModel>
 void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::momentumHalfStep(TParticle &particle){
 
 	for(int i=0; i<particle.landmarks.size(); i++){
-		particle.landmarks_momentum[i] -= 0.5*config.epsilon*particle.landmarks_gradient[i];
+		particle.landmarks_momentum[i] -= 0.5*particle.epsilon*particle.landmarks_gradient[i];
 
 	}
 	for(int i=0; i< particle.trajectory.size() ;  i++){
-		particle.trajectory_momentum[i] -= 0.5*config.epsilon * particle.trajectory_gradient[i];
+		particle.trajectory_momentum[i] -= 0.5*particle.epsilon * particle.trajectory_gradient[i];
 	}
 
 }
@@ -811,17 +819,17 @@ template<class RobotProcessModel, class MeasurementModel>
 void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::stateFullStep(TParticle &particle){
 
 	for(int i=0; i<particle.landmarks.size(); i++){
-		particle.landmarks[i] = particle.landmarks[i]+ config.epsilon*particle.landmarks_momentum[i]/config.m;
+		particle.landmarks[i] = particle.landmarks[i]+ particle.epsilon*particle.landmarks_momentum[i]/config.m;
 	}
 	for(int i=0; i< particle.trajectory.size() ;  i++){
-		particle.trajectory[i] = particle.trajectory[i]+ config.epsilon * particle.trajectory_momentum[i]/config.m;
+		particle.trajectory[i] = particle.trajectory[i]+ particle.epsilon * particle.trajectory_momentum[i]/config.m;
 	}
 }
 
 template<class RobotProcessModel, class MeasurementModel>
 double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::hamiltonian(const TParticle& particle) {
 
-	double hamiltonian=-particle.currentLikelihood;
+	double hamiltonian=-particle.currentLikelihood/config.temp;
 
 	for(auto &p:particle.trajectory_momentum){
 		hamiltonian+=0.5*p.squaredNorm()/config.m;
@@ -877,9 +885,35 @@ typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<R
 	//std::cout << "p:   " <<p  << " h1 :" << hamiltonian(particle) << "  h2:  " <<hamiltonian(particle_out) <<"\n";
 	if (uni_dist(randomGenerators_[threadnum])<p){
 		renormalize(particle_out);
+		particle_out.n_accept++;
+		if (particle_out.n_accept + particle_out.n_reject >= 10) {
+			if (particle_out.n_accept <= 2) {
+				particle_out.epsilon *= 0.8;
+			}
+			if (particle_out.n_reject <= 2) {
+				particle_out.epsilon *= 1.2;
+			}
+			particle_out.n_accept=0;
+			particle_out.n_reject=0;
+			//std::cout <<"eps: " << particle_out.epsilon << "\n";
+		}
+		//std::cout <<"eps: " << particle_out.epsilon << "\n";
 		return particle_out;
 
 	}
+	particle.n_reject++;
+	if (particle.n_accept + particle.n_reject >= 10) {
+		if (particle.n_accept <= 2) {
+			particle.epsilon *= 0.8;
+		}
+		if (particle.n_reject <= 2) {
+			particle.epsilon *= 1.2;
+		}
+		particle.n_accept=0;
+		particle.n_reject=0;
+		//std::cout <<"eps: " << particle.epsilon << "\n";
+	}
+	//std::cout <<"eps: " << particle.epsilon << "\n";
 	return particle;
 }
 template<class RobotProcessModel, class MeasurementModel>
@@ -901,14 +935,16 @@ template<class RobotProcessModel, class MeasurementModel>
 inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::renormalize(TParticle& particle) {
 
 
+	auto initPose=particle.trajectory[0];
 	for(int i=0; i<particle.landmarks.size(); i++){
 
-		particle.landmarks[i] -= particle.trajectory[0];
+		particle.landmarks[i] -= initPose;
 
 	}
+
 	for(int i=0; i< particle.trajectory.size() ;  i++){
 
-			particle.trajectory[i] -= particle.trajectory[0];
+			particle.trajectory[i] -= initPose;
 
 	}
 }
@@ -947,8 +983,6 @@ inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::deathMove(TPar
 		particle.landmarks.pop_back();
 		particle.landmarks_momentum.resize(particle.landmarks.size());
 		particle.landmarks_gradient.resize(particle.landmarks.size());
-		particle.bestLandmarks_momentum.resize(particle.landmarks.size());
-		particle.bestLandmarks = particle.landmarks;
 		rfsMeasurementLogLikelihood(particle);
 		accept= exp(particle.currentLikelihood-prevloglike)*config.Pb*qbirth/(qdeath*config.Pd);
 		if(uni_dist(randomGenerators_[threadnum]) > accept){
@@ -961,8 +995,6 @@ inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::deathMove(TPar
 
 	particle.landmarks_momentum.resize(particle.landmarks.size());
 	particle.landmarks_gradient.resize(particle.landmarks.size());
-	particle.bestLandmarks_momentum.resize(particle.landmarks.size());
-	particle.bestLandmarks = particle.landmarks;
 
 }
 
@@ -1005,11 +1037,9 @@ inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::birthMove(TPar
 		double qdeath = 1.0 / particle.landmarks.size();
 		particle.landmarks_momentum.resize(particle.landmarks.size());
 		particle.landmarks_gradient.resize(particle.landmarks.size());
-		particle.bestLandmarks_momentum.resize(particle.landmarks.size());
-		particle.bestLandmarks = particle.landmarks;
 
 		rfsMeasurementLogLikelihood(particle);
-		accept = exp(particle.currentLikelihood - prevloglike) * qdeath *config.Pd/ (qbirth*config.Pb);
+		accept = exp((particle.currentLikelihood - prevloglike)/config.temp) * qdeath *config.Pd/ (qbirth*config.Pb);
 
 		if (uni_dist(randomGenerators_[threadnum]) > accept) {
 
@@ -1021,8 +1051,6 @@ inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::birthMove(TPar
 
 	particle.landmarks_momentum.resize(particle.landmarks.size());
 	particle.landmarks_gradient.resize(particle.landmarks.size());
-	particle.bestLandmarks_momentum.resize(particle.landmarks.size());
-	particle.bestLandmarks = particle.landmarks;
 
 }
 
@@ -1060,7 +1088,7 @@ inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::birthDeathStep
 		typename TLandmark::Vec lm=particle.landmarks.back();
 		particle.landmarks.pop_back();
 		rfsMeasurementLogLikelihood(particle);
-		accept= exp(particle.currentLikelihood-prevloglike)*qbirth/qdeath;
+		accept= exp((particle.currentLikelihood-prevloglike)/config.temp)*qbirth/qdeath;
 		if(uni_dist(randomGenerators_[threadnum]) > accept){
 			particle.landmarks.push_back(lm);
 		}
