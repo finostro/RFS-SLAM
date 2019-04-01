@@ -32,16 +32,16 @@
   
   <optimizer>
     <optimizeIter>50</optimizeIter>
-    <iterations>1000</iterations>
-    <nParticles>200</nParticles> <!-- number of particles -->
+    <iterations>2000</iterations>
+    <nParticles>400</nParticles> <!-- number of particles -->
     <ospaC>1.0</ospaC>
     <initMapProb>0.01</initMapProb>
     <Pbirth>0.001</Pbirth>
     <Pdeath>0.001</Pdeath>
     <initTemp>1</initTemp>
-    <reduceFactor>1</reduceFactor> <!-- reduce the temperature every 100 iterations by multiplying by this factor -->
+    <reduceFactor>0.8</reduceFactor> <!-- reduce the temperature every 100 iterations by multiplying by this factor -->
 
-    <K>200</K>
+    <K>10</K>
     <epsilon>0.01</epsilon>
     <m>10.0</m>
     <predict>

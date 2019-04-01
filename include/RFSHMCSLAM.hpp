@@ -177,19 +177,19 @@ public:
 	 * Calculates the measurement likelihood of particle at time k, gradients are added to the current gradients in the particle object.
 	 * @param particleIdx The particle, trajectory and map
 	 * @param k the time for which to calculate the likelihood
-	 * @return the measurement likelihood
+	 * @return The landmarks that have nonzero detection probability
 	 */
 
-	double
+	std::vector<unsigned int>
 	rfsMeasurementLogLikelihood(TParticle &particle, const int k);
 
 	/**
 	 * Calculates the measurement likelihood of particle  including all available times stores the likelihood value and gradients on the particle object.
 	 * @param particle[in,out] The particle, trajectory and map,
-	 * @return the measurement likelihood
+	 * @return The landmarks that have nonzero detection probability
 	 */
 
-	double
+	std::vector<unsigned int>
 	rfsMeasurementLogLikelihood(TParticle &particle);
 
 	/**
@@ -222,9 +222,10 @@ public:
 	 * Run the leapFrog algorithm n times on a particle
 	 * @param[in,out] particle  input particle to start Hamiltonian Simulation
 	 * @param[in] n number of leapfrog iterations to run
+	 * @return false if the simulation has become unstable are states are not finite.
 	 *
 	 */
-	void leapFrog(TParticle &particle, int n);
+	bool leapFrog(TParticle &particle, int n);
 
 	/**
 	 * Perform a half step on the momentum state, ie predict the momentum at t + e/2
@@ -271,6 +272,11 @@ public:
 	 * @param particle[in] The particle
 	 */
 	double hamiltonian(const TParticle &particle);
+	/***
+	 * Check the particle state
+	 * @return true if all states are finite
+	 */
+	bool isFinite(TParticle &particle);
 
 	MeasurementModel *mModelPtr_;
 	RobotProcessModel *robotProcessModelPtr_;
@@ -469,17 +475,31 @@ void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::reversibleJumpHMC(std::vec
 
 
 template<class RobotProcessModel, class MeasurementModel>
-double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelihood(TParticle &particle) {
+std::vector<unsigned int> RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelihood(TParticle &particle) {
 	clear(particle);
-	double l = rfsMeasurementLogLikelihood(particle, 0);
+
+	std::vector<unsigned int> lmInFovIdx;
+	std::vector<unsigned int> removeLM;
+	removeLM.resize(particle.landmarks.size(),1);
+
+
+	lmInFovIdx = rfsMeasurementLogLikelihood(particle, 0);
+	for (auto i:lmInFovIdx){
+		removeLM[i]=0;
+	}
 	TimeStamp dT;
 	for (int k = 1; k < particle.trajectory.size(); k++) {
 
-		l += rfsMeasurementLogLikelihood(particle, k);
+		lmInFovIdx = rfsMeasurementLogLikelihood(particle, k);
+
+		for (auto i:lmInFovIdx){
+			removeLM[i]=0;
+		}
+
 		dT = time_[k] - time_[k - 1];
 		typename TPose::Vec pose_process_gradient;
 		double processlikelihood = robotProcessModelPtr_->logLikelihood(particle.trajectory[k], particle.trajectory[k - 1], inputs_[k - 1], dT, &pose_process_gradient);
-		l+=processlikelihood;
+
 		particle.currentLikelihood += processlikelihood;
 		particle.trajectory_gradient[k] -= pose_process_gradient;
 		particle.trajectory_gradient[k - 1] += pose_process_gradient;
@@ -505,15 +525,15 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelih
 	std::cout << "\n";
 	//std::cout << "likelihood   " << l << "\n";
 	*/
-	return l;
+	return removeLM;
 }
 
 template<class RobotProcessModel, class MeasurementModel>
-double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelihood(TParticle &particle, const int k) {
+std::vector<unsigned int>  RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelihood(TParticle &particle, const int k) {
 
 	//std::cout << "LIKELY -----------------------------------------------------\n\n\n";
 
-	assert(particle.trajectory[k][0] == particle.trajectory[k][0]);
+	assert(std::isfinite(particle.trajectory[k][0] ));
 	const TPose &pose = particle.trajectory[k];
 	const int nZ = this->Z_[k].size();
 	const unsigned int mapSize = particle.landmarks.size();
@@ -566,7 +586,7 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelih
 		for (int n = 0; n < nZ; n++) {
 			l += clutter[n];
 		}
-		return l - this->mModelPtr_->clutterIntensityIntegral(nZ);
+		return lmInFovIdx;
 	}
 
 	TLandmark* evalPt;
@@ -800,7 +820,7 @@ double RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMeasurementLogLikelih
 	} // End partitions
 
 	particle.currentLikelihood += l - this->mModelPtr_->clutterIntensityIntegral(nZ);
-	return l - this->mModelPtr_->clutterIntensityIntegral(nZ);
+	return lmInFovIdx;
 }
 
 template<class RobotProcessModel, class MeasurementModel>
@@ -877,8 +897,31 @@ typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<R
 
 
 	boost::uniform_int<> uni_int(1, config.K);
-	leapFrog(particle_out, uni_int(randomGenerators_[threadnum]));
+	if(leapFrog(particle_out, uni_int(randomGenerators_[threadnum]))){
 	boost::uniform_real<> uni_dist(0,1);
+
+	std::vector<unsigned int> removeLM = rfsMeasurementLogLikelihood(particle_out);
+
+
+	int i=0,j=removeLM.size()-1 ;
+	while ( i < j ){
+		while (i < j  && removeLM[j]==1) j--;
+		while (i < j && removeLM[i]==0) i++;
+		if (i<j){
+			particle_out.landmarks[i] = particle_out.landmarks[j];
+			particle_out.landmarks_gradient[i] = particle_out.landmarks_gradient[j];
+			particle_out.landmarks_momentum[i] = particle_out.landmarks_momentum[j];
+			removeLM[i]=0;
+			removeLM[j]=1;
+
+
+		}
+	}
+	if (j<-1) j=-1;
+	particle_out.landmarks.resize(j+1);
+	particle_out.landmarks_gradient.resize(j+1);
+	particle_out.landmarks_momentum.resize(j+1);
+
 
 
 	double p = std::exp(hamiltonian(particle)-hamiltonian(particle_out));
@@ -901,6 +944,7 @@ typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<R
 		return particle_out;
 
 	}
+	}
 	particle.n_reject++;
 	if (particle.n_accept + particle.n_reject >= 10) {
 		if (particle.n_accept <= 2) {
@@ -917,18 +961,23 @@ typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<R
 	return particle;
 }
 template<class RobotProcessModel, class MeasurementModel>
-void RFSHMCSLAM<RobotProcessModel, MeasurementModel>::leapFrog(TParticle& particle, int n) {
+bool RFSHMCSLAM<RobotProcessModel, MeasurementModel>::leapFrog(TParticle& particle, int n) {
 	rfsMeasurementLogLikelihood(particle);
 	for (int i = 0; i < n; i++) {
 
 		momentumHalfStep(particle);
 		stateFullStep(particle);
 
+
+		if(!isFinite(particle)){
+			std::cout << "inf\n";
+			return false;
+		}
 		rfsMeasurementLogLikelihood(particle);
 		momentumHalfStep(particle);
 	}
 
-
+return true;
 
 }
 template<class RobotProcessModel, class MeasurementModel>
@@ -1156,5 +1205,33 @@ inline void rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::resampleMoment
 	}
 }
 
+template<class RobotProcessModel, class MeasurementModel>
+inline bool rfs::RFSHMCSLAM<RobotProcessModel, MeasurementModel>::isFinite(
+		TParticle& particle) {
+	for(auto &pose:particle.trajectory){
+		if(! pose.allFinite()){
+			return false;
+		}
+	}
+
+	for(auto &landmark:particle.landmarks){
+		if (! landmark.allFinite()){
+			return false;
+		}
+	}
+	for (auto &g:particle.landmarks_gradient) {
+		if (! g.allFinite()) return false;
+	}
+	for (auto &g:particle.trajectory_gradient) {
+		if (! g.allFinite()) return false;
+	}
+	for (auto &m:particle.landmarks_momentum) {
+		if (! m.allFinite()) return false;
+	}
+	for (auto &m:particle.trajectory_momentum) {
+		if (! m.allFinite()) return false;
+	}
+	return true;
+}
 
 #endif

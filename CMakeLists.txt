@@ -189,7 +189,7 @@ ADD_EXECUTABLE(rfspsoslam1dSim src/rfspsoslam1dSim.cpp)
 TARGET_LINK_LIBRARIES(rfspsoslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(rfshmcslam1dSim src/rfshmcslam1dSim.cpp)
-TARGET_LINK_LIBRARIES(rfshmcslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rfshmcslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES})# ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(rfspsoslam2dSim src/rfspsoslam2dSim.cpp)
 TARGET_LINK_LIBRARIES(rfspsoslam2dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
