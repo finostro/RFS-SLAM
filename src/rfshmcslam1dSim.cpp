@@ -437,7 +437,6 @@ public:
 		hmcslam_->mModelPtr_->config.uniformClutterIntensity_ = c_;
 		hmcslam_->mModelPtr_->config.rangeLimMax_ = rangeLimitMax_;
 		hmcslam_->mModelPtr_->config.rangeLimMin_ = rangeLimitMin_;
-		hmcslam_->mModelPtr_->config.rangeLimMin_ = rangeLimitMin_;
 		hmcslam_->mModelPtr_->config.rangeLimBuffer_ = rangeLimitBuffer_;
 
 		// configure the filter

@@ -484,7 +484,7 @@ std::vector<unsigned int> RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMe
 
 
 	lmInFovIdx = rfsMeasurementLogLikelihood(particle, 0);
-	for (auto i:lmInFovIdx){
+	for (auto &i:lmInFovIdx){
 		removeLM[i]=0;
 	}
 	TimeStamp dT;
@@ -492,7 +492,7 @@ std::vector<unsigned int> RFSHMCSLAM<RobotProcessModel, MeasurementModel>::rfsMe
 
 		lmInFovIdx = rfsMeasurementLogLikelihood(particle, k);
 
-		for (auto i:lmInFovIdx){
+		for (auto &i:lmInFovIdx){
 			removeLM[i]=0;
 		}
 
@@ -900,27 +900,6 @@ typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<R
 	if(leapFrog(particle_out, uni_int(randomGenerators_[threadnum]))){
 	boost::uniform_real<> uni_dist(0,1);
 
-	std::vector<unsigned int> removeLM = rfsMeasurementLogLikelihood(particle_out);
-
-
-	int i=0,j=removeLM.size()-1 ;
-	while ( i < j ){
-		while (i < j  && removeLM[j]==1) j--;
-		while (i < j && removeLM[i]==0) i++;
-		if (i<j){
-			particle_out.landmarks[i] = particle_out.landmarks[j];
-			particle_out.landmarks_gradient[i] = particle_out.landmarks_gradient[j];
-			particle_out.landmarks_momentum[i] = particle_out.landmarks_momentum[j];
-			removeLM[i]=0;
-			removeLM[j]=1;
-
-
-		}
-	}
-	if (j<-1) j=-1;
-	particle_out.landmarks.resize(j+1);
-	particle_out.landmarks_gradient.resize(j+1);
-	particle_out.landmarks_momentum.resize(j+1);
 
 
 
@@ -940,6 +919,37 @@ typename RFSHMCSLAM<RobotProcessModel, MeasurementModel>::TParticle RFSHMCSLAM<R
 			particle_out.n_reject=0;
 			//std::cout <<"eps: " << particle_out.epsilon << "\n";
 		}
+
+		std::vector<unsigned int> removeLM = rfsMeasurementLogLikelihood(particle_out);
+/*
+		if (removeLM.size()>0){
+		for(int i=0; i< removeLM.size() ; i++){
+			std::cout << particle_out.landmarks[i] << "  " << removeLM[i] << "  ";
+		}
+		std::cout << "\n";
+		}*/
+		int i=0,j=removeLM.size()-1 ;
+		while ( i <= j ){
+			while (i <= j  && removeLM[j]==1) j--;
+			while (i <= j && removeLM[i]==0) i++;
+			if (i<j){
+
+				particle_out.landmarks[i] = particle_out.landmarks[j];
+				particle_out.landmarks_gradient[i] = particle_out.landmarks_gradient[j];
+				particle_out.landmarks_momentum[i] = particle_out.landmarks_momentum[j];
+				removeLM[i]=0;
+				removeLM[j]=1;
+
+
+			}
+		}
+		if(j!=removeLM.size()-1) std::cout << "removed !\n";
+		if (j<-1) j=-1;
+		particle_out.landmarks.resize(j+1);
+		particle_out.landmarks_gradient.resize(j+1);
+		particle_out.landmarks_momentum.resize(j+1);
+
+
 		//std::cout <<"eps: " << particle_out.epsilon << "\n";
 		return particle_out;
 

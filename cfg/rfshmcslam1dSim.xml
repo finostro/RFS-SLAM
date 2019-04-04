@@ -24,7 +24,7 @@
   <measurements>
     <rangeLimitMax>6.0</rangeLimitMax> <!-- measurement range limit -->
     <rangeLimitMin>0.5</rangeLimitMin> <!-- measurement range limit				 -->
-    <rangeLimitBuffer>0.05</rangeLimitBuffer> <!-- buffer zone around range limit in which negative information has no effects -->
+    <rangeLimitBuffer>0.00</rangeLimitBuffer> <!-- buffer zone around range limit in which negative information has no effects -->
     <probDetection>0.9</probDetection> <!-- probability of detection -->
     <clutterIntensity>0.01</clutterIntensity> <!-- uniform clutter intensity -->
     <varzr>0.0001</varzr> <!-- range measurement variance -->
@@ -36,10 +36,10 @@
     <nParticles>400</nParticles> <!-- number of particles -->
     <ospaC>1.0</ospaC>
     <initMapProb>0.01</initMapProb>
-    <Pbirth>0.001</Pbirth>
-    <Pdeath>0.001</Pdeath>
+    <Pbirth>0.01</Pbirth>
+    <Pdeath>0.01</Pdeath>
     <initTemp>1</initTemp>
-    <reduceFactor>0.8</reduceFactor> <!-- reduce the temperature every 100 iterations by multiplying by this factor -->
+    <reduceFactor>0.9</reduceFactor> <!-- reduce the temperature every 100 iterations by multiplying by this factor -->
 
     <K>10</K>
     <epsilon>0.01</epsilon>

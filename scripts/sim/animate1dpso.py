@@ -202,6 +202,7 @@ axMap.set_ylabel("Particle number")
 #axTr.set_title("Trajectory")
 axTr.set_xlabel("time [s]")
 axTr.set_ylabel("x [m]")
+axTr.set_ylim([yLim[0]-(yLim[1]-yLim[0])*0.2 , yLim[1]+(yLim[1]-yLim[0])*0.2])
 txt = axTr.text(xLim[0]+(xLim[1]-xLim[0])*0.1, yLim[0]+(yLim[1]-yLim[0])*0.9, " ",zorder=20);
 
 def animateInit():
@@ -257,7 +258,7 @@ def animate(i):
         p =np.fromstring(poseLine,dtype=float,sep=' ');
         nparticle = nparticle + 1
     axMap.set_ylim([-2.5 -measurements_i[len(measurements_x)-1] , nparticle])
-    axMap.set_xlim([-10,10])
+    axMap.set_xlim([-15,15])
     #print('traj ' + str(nparticle) + ' i ' + str(i) + '  p   '+ str(p))
     bestPoseHandle.set_data(trajectories[bestparticle].get_xdata() , trajectories[bestparticle].get_ydata())
     nparticle=0;

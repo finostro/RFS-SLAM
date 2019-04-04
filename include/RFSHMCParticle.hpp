@@ -64,7 +64,7 @@ namespace rfs {
 
     double currentLikelihood = -std::numeric_limits<double>::infinity()
         , bestLikelihood = -std::numeric_limits<double>::infinity();
-    double epsilon=1;
+    double epsilon=0.01;
     int n_accept=0;
     int n_reject=0;
 
