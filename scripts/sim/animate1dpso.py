@@ -37,7 +37,7 @@ import numpy as np
 import time
 
 import matplotlib
-matplotlib.use("Agg");
+#matplotlib.use("Agg");
 
 #print matplotlib.__version__
 
@@ -49,7 +49,7 @@ import matplotlib.ticker as ticker
 
 matplotlib.rcParams.update({'font.size': 20})
 
-saveMovie = True;
+saveMovie = False;
 saveFig = True
 timestepStart = 0
 
@@ -149,6 +149,16 @@ p =np.fromstring(line,dtype=float,sep=' ');
 final_iteration = p[0]
 print('final it: ' +str(final_iteration))
 
+print('Reading ' + measurementFile);
+measurements = np.genfromtxt(measurementFile);
+measurements_i = measurements[:,0].astype(int);
+print(measurements_i);
+measurements_x = measurements[:,1];
+
+measurements_x_0 = measurements[measurements_i==0,1];
+
+
+
 # Plotting
 
 fig = plt.figure( figsize=(12,10), facecolor='w')
@@ -160,12 +170,13 @@ gtMapHandle, = axMap.plot(gtMap_x, -1*np.ones(len(gtMap_x)), 'r*', markersize=15
 ax = plt.gca();
 
 axMap.set_ylim([-2 , 2000])
+#axMap.set_xlim([-5 , 5])
+
 gtPoseHandle, = axTr.plot(gtPose_t, gtPose_x, 'r-', zorder=12);
 
 drPoseHandle, = axTr.plot(drPose_t, drPose_x, 'r--', zorder=10);
 
 bestPoseHandle, = axTr.plot([], [], 'g-',linewidth=3,zorder = 9);
-measurementHandle, = axTr.plot([], [], 'g*',zorder = 9);
 
 trajectories = [];
 for i in range(0, nTrDrawMax) :
@@ -173,6 +184,8 @@ for i in range(0, nTrDrawMax) :
     trajectories.append( trajectories_line );
 
 bestLandmarks, = axMap.plot([],[], linestyle='', marker='o', color='r', zorder=9)
+
+measurementHandle, = axMap.plot([], [], 'g*',zorder = 9);
 landmarks = [];
 for i in range(0, nLandmarksDrawMax) :
     landmark_particle, = axMap.plot([],[], linestyle='', marker='o', color='b')
@@ -189,6 +202,7 @@ axMap.set_ylabel("Particle number")
 #axTr.set_title("Trajectory")
 axTr.set_xlabel("time [s]")
 axTr.set_ylabel("x [m]")
+axTr.set_ylim([yLim[0]-(yLim[1]-yLim[0])*0.2 , yLim[1]+(yLim[1]-yLim[0])*0.2])
 txt = axTr.text(xLim[0]+(xLim[1]-xLim[0])*0.1, yLim[0]+(yLim[1]-yLim[0])*0.9, " ",zorder=20);
 
 def animateInit():
@@ -243,11 +257,13 @@ def animate(i):
         poseLine = estPoseFileHandle.readline()
         p =np.fromstring(poseLine,dtype=float,sep=' ');
         nparticle = nparticle + 1
-    axMap.set_ylim([-2 , nparticle])
-    #axMap.set_xlim([-10,10])
+    axMap.set_ylim([-2.5 -measurements_i[len(measurements_x)-1] , nparticle])
+    axMap.set_xlim([-15,15])
     #print('traj ' + str(nparticle) + ' i ' + str(i) + '  p   '+ str(p))
     bestPoseHandle.set_data(trajectories[bestparticle].get_xdata() , trajectories[bestparticle].get_ydata())
     nparticle=0;
+    measurementHandle.set_data(measurements_x + trajectories[bestparticle].get_ydata()[measurements_i] , -measurements_i -2*np.ones(len(measurements_x)))
+    #measurementHandle.set_data(measurements_x_0 , -2*np.ones(len(measurements_x_0)))
     while len(m)>0 and m[0] < i:
       mapline = estMapFileHandle.readline()
       m = np.fromstring(mapline,dtype=float,sep=' ');
@@ -268,20 +284,20 @@ def animate(i):
     drawnObjects.append(gtMapHandle);
     drawnObjects.append(bestLandmarks);
     drawnObjects.append(bestPoseHandle);
+    drawnObjects.append(measurementHandle);
 
-
+    
 
 
     return drawnObjects;
 print(len(drPose_t))
-animation = anim.FuncAnimation(plt.figure(1), animate, np.linspace(timestepStart, final_iteration , 900, dtype=int), interval=1,
+animation = anim.FuncAnimation(plt.figure(1), animate, np.linspace(timestepStart, final_iteration , final_iteration-timestepStart, dtype=int), interval=1,
                                init_func=animateInit, blit=True,  repeat=False);
 if saveMovie:
     FFMpegWriter = matplotlib.animation.writers['ffmpeg']
     animation.save(estimateMovieFile, writer=FFMpegWriter(fps = 30))
 else:
-    animateInit()
-    animate(final_iteration)
+    plt.show()
     
 
 if saveFig:

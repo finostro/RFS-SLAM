@@ -28,15 +28,15 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef RFSPSOPARTICLE_HPP
-#define RFSPSOPARTICLE_HPP
+#ifndef RFSHMCPARTICLE_HPP
+#define RFSHMCPARTICLE_HPP
 
 #include "TimeStamp.hpp"
-
+#include <vector>
 
 namespace rfs {
   /**
-   *  \class RFSPSOParticle
+   *  \class RFSHMCParticle
    *  \brief Status for a batch optimization
    *
    *  This class stores a solution to SLAM, intended for use in batch optimizers.
@@ -47,21 +47,27 @@ namespace rfs {
    *  \author  Felipe Inostroza
    */
   template<class RobotProcessModel, class MeasurementModel>
-    class RFSPSOParticle
+    class RFSHMCParticle
   {
   public:
 
-    std::vector<typename RobotProcessModel::TInput> inputs , bestInputs;
-    std::vector<typename RobotProcessModel::TState> trajectory , bestTrajectory;
-    std::vector<typename MeasurementModel::TLandmark> landmarks , bestLandmarks;
+    std::vector<typename RobotProcessModel::TInput::Vec> inputs , bestInputs;
+    std::vector<typename RobotProcessModel::TState::Vec> trajectory , bestTrajectory;
+    std::vector<typename MeasurementModel::TLandmark::Vec> landmarks , bestLandmarks;
 
-    std::vector<typename RobotProcessModel::TInput> inputs_velocity, bestInputs_velocity;
-    std::vector<typename RobotProcessModel::TState> trajectory_velocity , bestTrajectory_velocity;
-    std::vector<typename MeasurementModel::TLandmark> landmarks_velocity, bestLandmarks_velocity;
+    std::vector<typename RobotProcessModel::TInput::Vec> inputs_momentum, bestInputs_momentum;
+    std::vector<typename RobotProcessModel::TState::Vec> trajectory_momentum , bestTrajectory_momentum;
+    std::vector<typename RobotProcessModel::TState::Vec> trajectory_gradient;
+
+    std::vector<typename MeasurementModel::TLandmark::Vec> landmarks_momentum, bestLandmarks_momentum;
+    std::vector<typename MeasurementModel::TLandmark::Vec> landmarks_gradient;
 
     double currentLikelihood = -std::numeric_limits<double>::infinity()
         , bestLikelihood = -std::numeric_limits<double>::infinity();
-    double hamiltonian;
+    double epsilon=0.01;
+    int n_accept=0;
+    int n_reject=0;
+
 
 
 
