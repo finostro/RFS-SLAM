@@ -44,6 +44,7 @@
 #include <unordered_map>
 #include <math.h>
 #include "GaussianGenerators.hpp"
+#include "AssociationSampler.hpp"
 
 #include "g2o/core/block_solver.h"
 #include "g2o/core/optimization_algorithm_levenberg.h"
@@ -55,6 +56,7 @@
 #include "g2o/types/slam2d/edge_pointxy.h"
 #include "g2o/types/slam2d/edge_se2_pointxy.h"
 #include "g2o/types/slam2d/edge_se2.h"
+#include <boost/random/uniform_real.hpp>
 
 
 #ifdef _PERFTOOLS_CPU
@@ -73,7 +75,10 @@ struct AssociationProbability{
     int i; /**< index of a landmark */
     double l; /**< log probability of association*/
 };
-
+struct AssociationProbabilities{
+    std::vector<int> i; /**< index of a landmark */
+    std::vector<double> l; /**< log probability of association*/
+};
 
 /**
  * Struct to store a single component of a VGLMB , with its own g2o optimizer
@@ -101,7 +106,7 @@ struct VectorGLMBComponent2D{
      -1 meaning unknown data association (should not be used but kept for consistency with the known data associations), -2 known to be false alarm */
      std::vector<std::vector<int> > rDA_; /**< reverse association , landmark to measurement, -1 if undetected, -2 if does not exist */
      std::vector<std::vector<MeasurementEdge*> > Z_; /**< Measurement edges stored, in order to set data association and add to graph later */
-     std::vector<std::vector<std::vector<AssociationProbability> > > DAProbs_; /**< The association probability of each measurement, used for switching using gibbs sampling*/
+     std::vector<std::vector<AssociationProbabilities > > DAProbs_; /**< The association probability of each measurement, used for switching using gibbs sampling*/
      std::vector<std::vector<int> > fov_; /**< indices of landmarks in field of view at time k */
 
      std::vector<PoseType*> poses_;
@@ -257,29 +262,42 @@ inline void VectorGLMBSLAM2D::initComponents() {
 
 }
 inline void VectorGLMBSLAM2D::sampleDA(VectorGLMBComponent2D& c){
+    boost::uniform_real<> uni_dist(0, 1);
+    int threadnum = 0;
+#ifdef _OPENMP
+threadnum = omp_get_thread_num();
+#endif
 
-    std::vector<AssociationProbability> probs;
+    AssociationProbabilities probs;
     for(int k =0;k < c.DAProbs_.size() ; k++){
 
         for(int nz=0; nz < c.DAProbs_[k].size(); nz++){
-            probs.clear();
+            probs.i.clear();
+            probs.l.clear();
             double maxprob=-std::numeric_limits<double>::infinity();
-            for(AssociationProbability &a: c.DAProbs_[k][nz]){
-                if(a.i==-2 || a.i == c.DA_[k][nz]){
-                    probs.push_back(a); // is false alarm probability or is the already selected association
-                    if(a.l > maxprob) maxprob=a.l;
+            for(int a=0; a<c.DAProbs_[k][nz].i.size(); a++){
+                if(c.DAProbs_[k][nz].i[a]==-2 || c.DAProbs_[k][nz].i[a] == c.DA_[k][nz]){
+                    probs.i.push_back(c.DAProbs_[k][nz].i[a]); // is false alarm probability or is the already selected association
+                    probs.l.push_back(c.DAProbs_[k][nz].l[a]);
+                    if(c.DAProbs_[k][nz].l[a] > maxprob) maxprob=c.DAProbs_[k][nz].l[a];
                 }else{
-                    if(c.rDA_[a.i]<0){
-                        probs.push_back(a); // landmark is not already associated to another measurement
-                        if(a.l > maxprob) maxprob=a.l;
+                    if(c.rDA_[k][c.DAProbs_[k][nz].i[a]]<0){
+                        probs.i.push_back(c.DAProbs_[k][nz].i[a]); // landmark is not already associated to another measurement
+                        probs.l.push_back(c.DAProbs_[k][nz].l[a]);
+                        if(c.DAProbs_[k][nz].l[a] > maxprob) maxprob=c.DAProbs_[k][nz].l[a];
                     }
                 }
             }
-            double lastP= 0;
-            for(auto &p:probs){
-                p.l = lastP+std::exp(p.l-maxprob);
-                lastP = p.l;
+
+            for(auto &p:probs.l){
+                p = std::exp(p-maxprob);
             }
+            size_t sample = GibbsSampler::sample(randomGenerators_[threadnum],probs.l);
+            if(c.DA_[k][nz]>=0){
+                c.rDA_[k][c.DA_[k][nz]]=
+            }
+            c.DA_[k][nz] = probs.i[sample];
+            c.rDA_[k][probs.i[sample]] = nz;
 
 
 
@@ -297,21 +315,21 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D& c){
 
 
 
-            for(auto association:c.DAProbs_[k][nz]){
-                if (association.i==-2){ // set measurement to false alarm
-                    association.l= config.logKappa_+0.5*(c.Z_[k][nz]->dimension() *std::log(2*M_PI)-std::log(c.Z_[k][nz]->information().determinant()));
+            for(int a=0; a<c.DAProbs_[k][nz].i.size(); a++){
+                if (c.DAProbs_[k][nz].i[a]==-2){ // set measurement to false alarm
+                    c.DAProbs_[k][nz].l[a]= config.logKappa_+0.5*(c.Z_[k][nz]->dimension() *std::log(2*M_PI)-std::log(c.Z_[k][nz]->information().determinant()));
                 }else{
                 bool isNew; /**< does selecting this landmark imply creating it*/
-                int numMeasurements =c.optimizer_->vertex(association.i)->edges().size();
-                isNew = numMeasurements==0 || (numMeasurements==1 && c.DA_[k][nz] == association.i);
-                association.l =0;
-                if (isNew) association.l += config.logOddsE_;
+                int numMeasurements =c.optimizer_->vertex(c.DAProbs_[k][nz].i[a])->edges().size();
+                isNew = numMeasurements==0 || (numMeasurements==1 && c.DA_[k][nz] == c.DAProbs_[k][nz].i[a]);
+                c.DAProbs_[k][nz].l[a] =0;
+                if (isNew) c.DAProbs_[k][nz].l[a] += config.logOddsE_;
 
-                association.l += config.logOddsPD_;
-                c.Z_[k][nz]->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(c.optimizer_->vertices().find(association.i)->second));
+                c.DAProbs_[k][nz].l[a] += config.logOddsPD_;
+                c.Z_[k][nz]->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(c.optimizer_->vertices().find(c.DAProbs_[k][nz].i[a])->second));
                 c.Z_[k][nz]->computeError();
 
-                association.l += -0.5*c.Z_[k][nz]->chi2();
+                c.DAProbs_[k][nz].l[a] += -0.5*c.Z_[k][nz]->chi2();
                 }
             }
 
