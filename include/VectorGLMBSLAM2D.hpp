@@ -57,6 +57,7 @@
 #include "g2o/types/slam2d/edge_se2_pointxy.h"
 #include "g2o/types/slam2d/edge_se2.h"
 #include <boost/random/uniform_real.hpp>
+#include <boost/bimap.hpp>
 
 
 #ifdef _PERFTOOLS_CPU
@@ -102,12 +103,16 @@ struct VectorGLMBComponent2D{
 
 
 
-     std::vector<std::vector<int> > DA_; /**< vector containing data association hypothesis,
+
+     std::vector< boost::bimap<int, int>> DA_bimap_;
+     std::vector<std::vector<int> > DA_obsoleto_; /**< vector containing data association hypothesis,
      -1 meaning unknown data association (should not be used but kept for consistency with the known data associations), -2 known to be false alarm */
-     std::vector<std::vector<int> > rDA_; /**< reverse association , landmark to measurement, -1 if undetected, -2 if does not exist */
+     std::vector<std::vector<int> >  rDA_; /**< reverse association , landmark to measurement, -1 if undetected, -2 if does not exist */
      std::vector<std::vector<MeasurementEdge*> > Z_; /**< Measurement edges stored, in order to set data association and add to graph later */
-     std::vector<std::vector<AssociationProbabilities > > DAProbs_; /**< The association probability of each measurement, used for switching using gibbs sampling*/
+     std::vector<std::vector<AssociationProbabilities > > DAProbs_; /**< DAProbs_ [k][nz] are is the association probabilities of measurement
+                                                                      nz at time k, used for switching using gibbs sampling*/
      std::vector<std::vector<int> > fov_; /**< indices of landmarks in field of view at time k */
+
 
      std::vector<PoseType*> poses_;
 
@@ -275,14 +280,19 @@ threadnum = omp_get_thread_num();
             probs.i.clear();
             probs.l.clear();
             double maxprob=-std::numeric_limits<double>::infinity();
+            auto it =c.DA_bimap_[k].left.find(nz);
+            int selectedDA = -2;
+            if (it != c.DA_bimap_[k].left.end()){
+                selectedDA = it->second;
+            }
             for(int a=0; a<c.DAProbs_[k][nz].i.size(); a++){
-                if(c.DAProbs_[k][nz].i[a]==-2 || c.DAProbs_[k][nz].i[a] == c.DA_[k][nz]){
-                    probs.i.push_back(c.DAProbs_[k][nz].i[a]); // is false alarm probability or is the already selected association
+                if(c.DAProbs_[k][nz].i[a]==-2 || c.DAProbs_[k][nz].i[a] == selectedDA){// is false alarm probability or is the already selected association
+                    probs.i.push_back(c.DAProbs_[k][nz].i[a]);
                     probs.l.push_back(c.DAProbs_[k][nz].l[a]);
                     if(c.DAProbs_[k][nz].l[a] > maxprob) maxprob=c.DAProbs_[k][nz].l[a];
                 }else{
-                    if(c.rDA_[k][c.DAProbs_[k][nz].i[a]]<0){
-                        probs.i.push_back(c.DAProbs_[k][nz].i[a]); // landmark is not already associated to another measurement
+                    if(c.rDA_[k][c.DAProbs_[k][nz].i[a]]<0){  // landmark is not already associated to another measurement
+                        probs.i.push_back(c.DAProbs_[k][nz].i[a]);
                         probs.l.push_back(c.DAProbs_[k][nz].l[a]);
                         if(c.DAProbs_[k][nz].l[a] > maxprob) maxprob=c.DAProbs_[k][nz].l[a];
                     }
@@ -293,11 +303,22 @@ threadnum = omp_get_thread_num();
                 p = std::exp(p-maxprob);
             }
             size_t sample = GibbsSampler::sample(randomGenerators_[threadnum],probs.l);
-            if(c.DA_[k][nz]>=0){
-                c.rDA_[k][c.DA_[k][nz]]=
+
+            if (probs.i[sample] != selectedDA){ // if selected association, change bimap
+
+                if(probs.i[sample]>=0 ){
+                    if(selectedDA<0 ){
+                    c.DA_bimap_[k].insert({nz, probs.i[sample]});
+                    }else{
+                        c.DA_bimap_[k].left.replace_data(it,probs.i[sample]);
+                    }
+                }else{ // if a change has to be made and selected is false alarm, we need to remove the association
+                    c.DA_bimap_[k].left.erase(it);
+
+                }
+
+
             }
-            c.DA_[k][nz] = probs.i[sample];
-            c.rDA_[k][probs.i[sample]] = nz;
 
 
 
@@ -311,7 +332,11 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D& c){
 
         for(int nz=0; nz < c.DAProbs_[k].size(); nz++){
 
-
+            auto it =c.DA_bimap_[k].left.find(nz);
+            int selectedDA = -2;
+            if (it != c.DA_bimap_[k].left.end()){
+                selectedDA = it->second;
+            }
 
 
 
@@ -321,7 +346,7 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D& c){
                 }else{
                 bool isNew; /**< does selecting this landmark imply creating it*/
                 int numMeasurements =c.optimizer_->vertex(c.DAProbs_[k][nz].i[a])->edges().size();
-                isNew = numMeasurements==0 || (numMeasurements==1 && c.DA_[k][nz] == c.DAProbs_[k][nz].i[a]);
+                isNew = numMeasurements==0 || (numMeasurements==1 && selectedDA == c.DAProbs_[k][nz].i[a]);
                 c.DAProbs_[k][nz].l[a] =0;
                 if (isNew) c.DAProbs_[k][nz].l[a] += config.logOddsE_;
 
@@ -372,6 +397,7 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D& c) {
     //Copy odometry measurements, Copy and save landmark measurements
 
 
+    c.DA_bimap_.resize(c.numPoses_);
     c.DA_.resize(c.numPoses_);
     c.Z_.resize(c.numPoses_);
     c.DAProbs_(c.numPoses_);
