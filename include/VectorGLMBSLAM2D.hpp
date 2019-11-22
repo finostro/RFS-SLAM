@@ -104,10 +104,8 @@ struct VectorGLMBComponent2D{
 
 
 
-     std::vector< boost::bimap<int, int>> DA_bimap_;
-     std::vector<std::vector<int> > DA_obsoleto_; /**< vector containing data association hypothesis,
-     -1 meaning unknown data association (should not be used but kept for consistency with the known data associations), -2 known to be false alarm */
-     std::vector<std::vector<int> >  rDA_; /**< reverse association , landmark to measurement, -1 if undetected, -2 if does not exist */
+     std::vector< boost::bimap<int, int>> DA_bimap_; /**< Bimap containing data association hypothesis at time k  */
+
      std::vector<std::vector<MeasurementEdge*> > Z_; /**< Measurement edges stored, in order to set data association and add to graph later */
      std::vector<std::vector<AssociationProbabilities > > DAProbs_; /**< DAProbs_ [k][nz] are is the association probabilities of measurement
                                                                       nz at time k, used for switching using gibbs sampling*/
@@ -115,6 +113,7 @@ struct VectorGLMBComponent2D{
 
 
      std::vector<PoseType*> poses_;
+     std::vector<PointType*> landmarks_;
 
      double logweight_;
      int numPoses_,numPoints_;
@@ -157,11 +156,18 @@ struct VectorGLMBComponent2D{
 
         double logOddsPD_; /**< log odds of landmark detection */
 
-        int numLandmarks_;
+        double maxRange_; /**< maximum sensor range */
 
-        int lmExistenceProb_;
 
         int numComponents_;
+
+        std::vector<double> xlim_,ylim_;
+
+        int numLandmarks_; /**< number of landmarks per dimension total landmarks will be numlandmarks^2 */
+
+        int lmExistenceProb_;
+        Eigen::Matrix2d anchorInfo_; /** information for anchor edges, should be low*/
+
 
 
 
@@ -208,11 +214,26 @@ struct VectorGLMBComponent2D{
      */
     void updateDAProbs(VectorGLMBComponent2D &c);
 
+
+    /**
+     * Calculate the FoV at each time
+     * @param c the GLMB component
+     */
+    void updateFoV(VectorGLMBComponent2D &c);
+
     /**
      * Use the probabilities calculated using updateDAProbs to sample a new data association through gibbs sampling
      * @param c the GLMB component
      */
     void sampleDA(VectorGLMBComponent2D &c);
+
+    /**
+     * Calculate the range between a pose and a landmark, to calculate the probability of detection.
+     * @param pose A 2D pose
+     * @param lm A 2D landmark
+     * @return the distance between pose and landmark
+     */
+    static double distance(PoseType* pose, PointType * lm);
 
 
 
@@ -255,6 +276,15 @@ struct VectorGLMBComponent2D{
 
 
 
+  static double VectorGLMBSLAM2D::distance(PoseType* pose, PointType * lm){
+
+      Eigen::Vector3d posemean;
+      pose->getEstimateData(posemean.data());
+      Eigen::Vector2d pointmean;
+      lm->getEstimateData(pointmean.data());
+      return sqrt((pointmean-posemean.head(2)).squaredNorm());
+
+  }
 
 
 inline void VectorGLMBSLAM2D::initComponents() {
@@ -291,7 +321,7 @@ threadnum = omp_get_thread_num();
                     probs.l.push_back(c.DAProbs_[k][nz].l[a]);
                     if(c.DAProbs_[k][nz].l[a] > maxprob) maxprob=c.DAProbs_[k][nz].l[a];
                 }else{
-                    if(c.rDA_[k][c.DAProbs_[k][nz].i[a]]<0){  // landmark is not already associated to another measurement
+                    if(c.DA_bimap_[k].right.count(c.DAProbs_[k][nz].i[a]) ==0){  // landmark is not already associated to another measurement
                         probs.i.push_back(c.DAProbs_[k][nz].i[a]);
                         probs.l.push_back(c.DAProbs_[k][nz].l[a]);
                         if(c.DAProbs_[k][nz].l[a] > maxprob) maxprob=c.DAProbs_[k][nz].l[a];
@@ -326,11 +356,27 @@ threadnum = omp_get_thread_num();
     }
 
 }
+
+inline void VectorGLMBSLAM2D::updateFoV(VectorGLMBComponent2D& c){
+    for(int k =0;k < c.fov_.size() ; k++){
+        for (auto lm : c.landmarks_){
+            if (distance(c.poses_[k],lm) <= config.maxRange_){
+                c.fov_[k].push_back(lm->id());
+            }
+        }
+    }
+}
+
 inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D& c){
 
     for(int k =0;k < c.DAProbs_.size() ; k++){
 
         for(int nz=0; nz < c.DAProbs_[k].size(); nz++){
+
+            // setting the topology of DAProbs to include all measurements in current FoV
+            c.DAProbs_[k][nz].i = c.fov_[k];
+            c.DAProbs_[k][nz].l.resize(c.DAProbs_[k][nz].i.size());
+
 
             auto it =c.DA_bimap_[k].left.find(nz);
             int selectedDA = -2;
@@ -382,6 +428,7 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D& c) {
             c.poses_.push_back(poseCopy);
             c.numPoses_++;
         }
+        /*
         PointType* point = dynamic_cast<PoseType>(v);
         if (point != NULL) {
             PointType*  pointCopy= new PointType();
@@ -390,15 +437,35 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D& c) {
             pointCopy->setEstimateData(pointData);
             pointCopy->setId(point->id());
             c.optimizer_->addVertex(pointCopy);
+            c.landmarks_.push_back(pointCopy);
             c.numPoints_++;
+        }
+        */
+    }
+
+    int lmid=1;
+    for(double x = config.xlim_[0]; x <= config.xlim_[1] ; x+= (config.xlim_[1]-config.xlim_[2])/config.numLandmarks_ ){
+        for(double y = config.ylim_[0]; y <= config.ylim_[1] ; y+= (config.ylim_[1]-config.ylim_[2])/config.numLandmarks_ ){
+            PointType * lm = new PointType();
+            PointAnchorEdge * anchor = new PointAnchorEdge();
+            Eigen::Vector2d xy(x,y);
+            lm->setEstimateData(xy.data());
+            lm->setId(lmid++);
+            c.optimizer_->addVertex(lm);
+            anchor->setVertex(0,lm);
+            anchor->setMeasurement(xy);
+            anchor->setInformation(config.anchorInfo_);
+            c.optimizer_->addEdge(anchor);
         }
 
     }
+
+
     //Copy odometry measurements, Copy and save landmark measurements
 
 
     c.DA_bimap_.resize(c.numPoses_);
-    c.DA_.resize(c.numPoses_);
+
     c.Z_.resize(c.numPoses_);
     c.DAProbs_(c.numPoses_);
 
@@ -428,11 +495,9 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D& c) {
             double measurementData[2];
             z->getMeasurementData(measurementData);
             zcopy->setMeasurementData(measurementData);
-            zcopy->setInformation(odo->information());
+            zcopy->setInformation(z->information());
             zcopy->setParameterId(0, 0);
-
-            c.DA_[firstvertex].push_back(-2);
-            c.Z_[firstvertex].push_back(zcopy);
+            c.Z_[firstvertex-c.poses_[0]->id()].push_back(zcopy);
         }
 
     }
