@@ -110,7 +110,7 @@ struct VectorGLMBComponent2D {
 	std::vector<PoseType*> poses_;
 	std::vector<PointType*> landmarks_;
 
-	double logweight_;
+	double logweight_,prevLogWeight_;
 	int numPoses_, numPoints_;
 };
 
@@ -156,7 +156,8 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 		int numLandmarks_; /**< number of landmarks per dimension total landmarks will be numlandmarks^2 */
 
-		int numGibbs_; /**< number of gibbs samples of the data association */
+        int numGibbs_; /**< number of gibbs samples of the data association */
+        int numLevenbergIterations_; /**< number of gibbs samples of the data association */
 
 		int lmExistenceProb_;
 		Eigen::Matrix2d anchorInfo_; /** information for anchor edges, should be low*/
@@ -189,6 +190,12 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 * initialize the components , set the initial data associations to all false alarms
 	 */
 	void initComponents();
+
+	/**
+	 * run the optimization over the possible data associations.
+	 * @param numsteps number of iterations in algorithm.
+	 */
+	void run(int numsteps);
 	/**
 	 * Do n iterations
 	 * @param ni number of iterations of the optimizer
@@ -301,7 +308,7 @@ void VectorGLMBSLAM2D::loadConfig(std::string filename) {
 
 }
 
-static double VectorGLMBSLAM2D::distance(PoseType *pose, PointType *lm) {
+ double VectorGLMBSLAM2D::distance(PoseType *pose, PointType *lm) {
 
 	Eigen::Vector3d posemean;
 	pose->getEstimateData(posemean.data());
@@ -320,6 +327,12 @@ inline void VectorGLMBSLAM2D::initComponents() {
 	}
 
 }
+inline void VectorGLMBSLAM2D::run(int numSteps) {
+    initComponents();
+    for( int i =0; i < numSteps; i++){
+        optimize(config.numLevenbergIterations_);
+    }
+}
 inline void VectorGLMBSLAM2D::optimize(int ni) {
 	for (auto &c : components_) {
 		updateFoV(c);
@@ -330,7 +343,9 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		updateGraph(c);
 		c.poses_[0]->fixed();
 		c.optimizer_->initializeOptimization(c.optimizer_->edges());
-		c.optimizer_->optimize(10);
+		c.optimizer_->optimize(ni);
+		calculateWeight(c);
+		std::cout << "weight: " << c.logweight_ << "\n";
 
 	}
 }
@@ -348,7 +363,7 @@ inline void VectorGLMBSLAM2D::calculateWeight(VectorGLMBComponent2D &c) {
 			if(selectedDA <0){
 				logw+=config.logKappa_;
 			}else{
-				logw+= -0.5(c.Z_[k][nz]->dimension()*std::log(2*M_PI) - std::log(c.Z_[k][nz]->information().determinant()) );
+				logw+= -0.5*(c.Z_[k][nz]->dimension()*std::log(2*M_PI) - std::log(c.Z_[k][nz]->information().determinant()) );
 			}
 		}
 
@@ -376,8 +391,8 @@ inline void VectorGLMBSLAM2D::calculateWeight(VectorGLMBComponent2D &c) {
 		}
 	}
 	logw+= -0.5*(c.optimizer_->chi2() + c.linearSolver_->_determinant);
-
-
+	c.prevLogWeight_ = c.logweight_;
+	c.logweight_ = logw;
 }
 
 
@@ -532,8 +547,9 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 	c.numPoses_ = 0;
 	c.numPoints_ = 0;
 	//Copy Vertices from optimizer with data association
-	for (g2o::OptimizableGraph::Vertex *v : gt_graph.optimizer_->vertices()) {
-		PoseType *pose = dynamic_cast<PoseType>(v);
+	for (auto pair : gt_graph.optimizer_->vertices()) {
+	    g2o::HyperGraph::Vertex *v =pair.second;
+		PoseType *pose = dynamic_cast<PoseType*>(v);
 		if (pose != NULL) {
 			PoseType *poseCopy = new PoseType();
 			double poseData[3];
@@ -581,10 +597,10 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 	c.DA_bimap_.resize(c.numPoses_);
 
 	c.Z_.resize(c.numPoses_);
-	c.DAProbs_(c.numPoses_);
+	c.DAProbs_.resize(c.numPoses_);
 
-	for (g2o::OptimizableGraph::Edge *e : gt_graph.optimizer_->edges()) {
-		OdometryEdge *odo = dynamic_cast<OdometryEdge>(e);
+	for (g2o::HyperGraph::Edge *e : gt_graph.optimizer_->edges()) {
+		OdometryEdge *odo = dynamic_cast<OdometryEdge*>(e);
 		if (odo != NULL) {
 			OdometryEdge *odocopy = new OdometryEdge();
 			int firstvertex = odo->vertex(0)->id();
@@ -599,7 +615,7 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 			c.optimizer_->addEdge(odocopy);
 		}
 
-		MeasurementEdge *z = dynamic_cast<MeasurementEdge>(e);
+		MeasurementEdge *z = dynamic_cast<MeasurementEdge*>(e);
 		if (z != NULL) {
 			MeasurementEdge *zcopy = new MeasurementEdge();
 			int firstvertex = z->vertex(0)->id();

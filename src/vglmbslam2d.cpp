@@ -22,7 +22,13 @@ int main(int argc, char* argv[]){
     return 1;
   }
 
+  rfs::initializeGaussianGenerators();
+
   vglmb.loadConfig(cfgFileName);
   vglmb.load(g2oFileName);
+
+  vglmb.run(100);
+
+
 
 }
