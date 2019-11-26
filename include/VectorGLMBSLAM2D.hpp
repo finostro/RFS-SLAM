@@ -294,6 +294,7 @@ void VectorGLMBSLAM2D::loadConfig(std::string filename) {
 	config.numComponents_ = node["numComponents"].as<int>();
 	config.numLandmarks_ = node["numLandmarks"].as<int>();
 	config.numGibbs_ = node["numGibbs"].as<int>();
+	config.numLevenbergIterations_ = node["numLevenbergIterations"].as<int>();
 	config.xlim_.push_back(node["xlim"][0].as<double>()) ;
 	config.xlim_.push_back(node["xlim"][1].as<double>()) ;
 	config.ylim_.push_back(node["ylim"][0].as<double>()) ;

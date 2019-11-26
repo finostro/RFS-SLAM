@@ -1,0 +1,29 @@
+
+MeasurementLikelihoodThreshold:  
+
+lmExistenceProb: 
+
+
+
+logKappa: 0.01
+
+
+
+PE: 0.05
+
+
+PD: 0.9
+
+
+numGibbs: 3
+numLandmarks: 100
+numComponents: 1
+maxRange: 5
+numLevenbergIterations:
+xlim : [-20.0 , 20.0 ]
+ylim : [-20.0 , 20.0 ]
+
+anchorInfo:
+    numRows: 2
+    numCols: 2
+    data: [1,0,0,1]
