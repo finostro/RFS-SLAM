@@ -1,7 +1,7 @@
 
-MeasurementLikelihoodThreshold:  
+MeasurementLikelihoodThreshold:  100.0
 
-lmExistenceProb: 
+lmExistenceProb: 0.01
 
 
 
@@ -16,14 +16,14 @@ PD: 0.9
 
 
 numGibbs: 3
-numLandmarks: 100
+numLandmarks: 20
 numComponents: 1
 maxRange: 5
-numLevenbergIterations:
+numLevenbergIterations: 10
 xlim : [-20.0 , 20.0 ]
 ylim : [-20.0 , 20.0 ]
 
 anchorInfo:
-    numRows: 2
-    numCols: 2
+    rows: 2
+    cols: 2
     data: [1,0,0,1]

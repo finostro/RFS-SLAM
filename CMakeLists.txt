@@ -29,7 +29,8 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
    add_compile_options (-fcolor-diagnostics)
 endif ()
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -std=c++11")
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #MESSAGE("CMAKE_CXX_COMPILTER_ID = ${CMAKE_CXX_COMPILER_ID}")
 IF(APPLE)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-ignored-qualifiers ") # For Eigen const warnings
@@ -206,7 +207,7 @@ ADD_EXECUTABLE(rfsceresslam1dSim src/rfsceresslam1dSim.cpp)
 TARGET_LINK_LIBRARIES(rfsceresslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(vglmbslam2d src/vglmbslam2d.cpp)
-TARGET_LINK_LIBRARIES(vglmbslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(vglmbslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core_d g2o_csparse_extension_d g2o_solver_csparse_d g2o_types_slam2d_d g2o_stuff_d  ${YAML_CPP_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(rfsceresslam2dSim src/rfsceresslam2dSim.cpp)
 TARGET_LINK_LIBRARIES(rfsceresslam2dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})

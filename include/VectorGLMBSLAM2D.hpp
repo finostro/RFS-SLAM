@@ -88,7 +88,7 @@ struct AssociationProbabilities {
  * Struct to store a single component of a VGLMB , with its own g2o optimizer
  */
 struct VectorGLMBComponent2D {
-
+public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	typedef g2o::VertexPointXY PointType;
 	typedef g2o::VertexSE2 PoseType;
 	typedef g2o::EdgeSE2PointXY MeasurementEdge;
@@ -135,7 +135,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 * \brief Configurations for this RFSBatchPSO optimizer
 	 */
 	struct Config {
-
+	public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 		/** The threshold used to determine if a possible meaurement-landmark
 		 *  pairing is significant to worth considering
 		 */
@@ -186,6 +186,8 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	void
 	loadConfig(std::string filename);
 
+
+
 	/**
 	 * initialize the components , set the initial data associations to all false alarms
 	 */
@@ -232,6 +234,20 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 */
 	void sampleDA(VectorGLMBComponent2D &c);
 
+    /**
+     * print the data association in component c
+     * @param c the GLMB component
+     */
+    void printDA(VectorGLMBComponent2D &c); /**
+     * print the data association in component c
+     * @param c the GLMB component
+     */
+    void printDAProbs(VectorGLMBComponent2D &c);
+    /**
+     * print the data association in component c
+     * @param c the GLMB component
+     */
+    void printFoV(VectorGLMBComponent2D &c);
 	/**
 	 * Use the data association hipothesis and the optimized state to calculate the component weight.
 	 * @param c the GLMB component
@@ -329,7 +345,6 @@ inline void VectorGLMBSLAM2D::initComponents() {
 
 }
 inline void VectorGLMBSLAM2D::run(int numSteps) {
-    initComponents();
     for( int i =0; i < numSteps; i++){
         optimize(config.numLevenbergIterations_);
     }
@@ -341,6 +356,9 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		for(int i=0; i< config.numGibbs_ ; i++){
 			sampleDA(c);
 		}
+        printFoV(c);
+        printDA(c);
+        //printDAProbs(c);
 		updateGraph(c);
 		c.poses_[0]->fixed();
 		c.optimizer_->initializeOptimization(c.optimizer_->edges());
@@ -401,8 +419,9 @@ inline void VectorGLMBSLAM2D::calculateWeight(VectorGLMBComponent2D &c) {
 inline void VectorGLMBSLAM2D::updateGraph(VectorGLMBComponent2D &c) {
 	for (int k = 0; k < c.poses_.size(); k++) {
 		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
+		    int selectedDA = -2;
 			auto it = c.DA_bimap_[k].left.find(nz);
-			int selectedDA = -2;
+
 			if (it != c.DA_bimap_[k].left.end()) {
 				selectedDA = it->second;
 			}
@@ -412,21 +431,63 @@ inline void VectorGLMBSLAM2D::updateGraph(VectorGLMBComponent2D &c) {
 			}
 			if(selectedDA>=0){
 
-				c.Z_[k][nz]->setVertex(1,dynamic_cast<g2o::OptimizableGraph::Vertex*>(c.optimizer_->vertices().find(selectedDA)->second));
 
 				// if edge was already in graph, remove it before inserting it again
 				 if(previd>=0){
-					 c.optimizer_->removeEdge(c.Z_[k][nz]);
+					 c.optimizer_->setEdgeVertex(c.Z_[k][nz] , 1 , dynamic_cast<g2o::OptimizableGraph::Vertex*>(c.optimizer_->vertices().find(selectedDA)->second)); // this removes the edge from the list in both vertices
+				 }else{
+				     c.Z_[k][nz]->setVertex(1,dynamic_cast<g2o::OptimizableGraph::Vertex*>(c.optimizer_->vertices().find(selectedDA)->second));
+
+				     c.optimizer_->addEdge(c.Z_[k][nz]);
 				 }
-				 c.optimizer_->addEdge(c.Z_[k][nz]);
+
 			}else{
-				c.Z_[k][nz]->setVertex(1,NULL);
+
 				c.optimizer_->removeEdge(c.Z_[k][nz]);
+				c.Z_[k][nz]->setVertex(1,NULL);
 
 			}
 
 		}
 	}
+}
+template< class MapType >
+void print_map(const MapType & m)
+{
+    typedef typename MapType::const_iterator const_iterator;
+    for( const_iterator iter = m.begin(), iend = m.end(); iter != iend; ++iter )
+    {
+        std::cout << iter->first << "-->" << iter->second << std::endl;
+    }
+}
+inline void VectorGLMBSLAM2D::printFoV(VectorGLMBComponent2D &c) {
+    std::cout << "FoV:\n";
+    for(int k=0; k< c.fov_.size() ; k++){
+        std::cout <<  k << "  FoV at:   ";
+        for(int lmid:c.fov_[k]){
+            std::cout <<"  ,  "<< lmid ;
+        }
+        std::cout << "\n";
+    }
+}
+inline void VectorGLMBSLAM2D::printDAProbs(VectorGLMBComponent2D &c) {
+    for(int k=0; k< c.DAProbs_.size() ; k++){
+        std::cout << k << "da probs:\n";
+        for(int nz=0; nz < c.DAProbs_[k].size(); nz++){
+            std::cout <<"z =  "<< nz << "  ;";
+            for(double l:c.DAProbs_[k][nz].l){
+                std::cout<< l << " , ";
+            }
+            std::cout << "\n";
+        }
+        std::cout << "\n";
+    }
+}
+inline void VectorGLMBSLAM2D::printDA(VectorGLMBComponent2D &c) {
+    for(int k=0; k< c.DA_bimap_.size() ; k++){
+        std::cout << k << ":\n";
+        print_map(c.DA_bimap_[k].left);
+    }
 }
 inline void VectorGLMBSLAM2D::sampleDA(VectorGLMBComponent2D &c) {
 	boost::uniform_real<> uni_dist(0, 1);
@@ -501,7 +562,7 @@ inline void VectorGLMBSLAM2D::updateFoV(VectorGLMBComponent2D &c) {
 inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 
 	for (int k = 0; k < c.DAProbs_.size(); k++) {
-
+	    c.DAProbs_[k].resize(c.Z_[k].size());
 		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
 
 			// setting the topology of DAProbs to include all measurements in current FoV
@@ -548,6 +609,7 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 	c.numPoses_ = 0;
 	c.numPoints_ = 0;
 	//Copy Vertices from optimizer with data association
+	int maxid=0;
 	for (auto pair : gt_graph.optimizer_->vertices()) {
 	    g2o::HyperGraph::Vertex *v =pair.second;
 		PoseType *pose = dynamic_cast<PoseType*>(v);
@@ -560,7 +622,14 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 			c.optimizer_->addVertex(poseCopy);
 			c.poses_.push_back(poseCopy);
 			c.numPoses_++;
+
+			if (maxid <pose->id()){
+			    maxid = pose->id();
+			}
 		}
+		//sort by id
+
+
 		/*
 		 PointType* point = dynamic_cast<PoseType>(v);
 		 if (point != NULL) {
@@ -575,8 +644,11 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 		 }
 		 */
 	}
+    std::sort(c.poses_.begin(),c.poses_.end(),  [] (const auto& lhs, const auto& rhs) {
+        return lhs->id() < rhs->id();
+    } );
 
-	int lmid = 1;
+	int lmid = maxid+1;
 	for (double x = config.xlim_[0]; x <= config.xlim_[1]; x += (config.xlim_[1] - config.xlim_[2]) / config.numLandmarks_) {
 		for (double y = config.ylim_[0]; y <= config.ylim_[1]; y += (config.ylim_[1] - config.ylim_[2]) / config.numLandmarks_) {
 			PointType *lm = new PointType();
@@ -585,6 +657,8 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 			lm->setEstimateData(xy.data());
 			lm->setId(lmid++);
 			c.optimizer_->addVertex(lm);
+	        c.landmarks_.push_back(lm);
+
 			anchor->setVertex(0, lm);
 			anchor->setMeasurement(xy);
 			anchor->setInformation(config.anchorInfo_);
@@ -599,6 +673,7 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 
 	c.Z_.resize(c.numPoses_);
 	c.DAProbs_.resize(c.numPoses_);
+	c.fov_.resize(c.numPoses_);
 
 	for (g2o::HyperGraph::Edge *e : gt_graph.optimizer_->edges()) {
 		OdometryEdge *odo = dynamic_cast<OdometryEdge*>(e);
@@ -640,6 +715,7 @@ inline void VectorGLMBSLAM2D::init(VectorGLMBComponent2D &c) {
 	linearSolver->setBlockOrdering(false);
 	c.linearSolver_ = linearSolver.get();
 	c.solverLevenberg_ = new g2o::OptimizationAlgorithmLevenberg(g2o::make_unique<SlamBlockSolver>(std::move(linearSolver)));
+	c.optimizer_ =  new g2o::SparseOptimizer();
 	c.optimizer_->setAlgorithm(c.solverLevenberg_);
 }
 

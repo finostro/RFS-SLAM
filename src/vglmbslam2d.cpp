@@ -25,7 +25,9 @@ int main(int argc, char* argv[]){
   rfs::initializeGaussianGenerators();
 
   vglmb.loadConfig(cfgFileName);
+  vglmb.init(vglmb.gt_graph);
   vglmb.load(g2oFileName);
+  vglmb.initComponents();
 
   vglmb.run(100);
 
