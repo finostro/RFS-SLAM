@@ -56,6 +56,7 @@
 #include "g2o/types/slam2d/edge_pointxy.h"
 #include "g2o/types/slam2d/edge_se2_pointxy.h"
 #include "g2o/types/slam2d/edge_se2.h"
+#include "g2o/types/slam2d/edge_xy_prior.h"
 #include <boost/random/uniform_real.hpp>
 #include <boost/bimap.hpp>
 #include <yaml-cpp/yaml.h>
@@ -92,7 +93,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	typedef g2o::VertexPointXY PointType;
 	typedef g2o::VertexSE2 PoseType;
 	typedef g2o::EdgeSE2PointXY MeasurementEdge;
-	typedef g2o::EdgePointXY PointAnchorEdge;
+	typedef g2o::EdgeXYPrior PointAnchorEdge;
 
 	typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1> > SlamBlockSolver;
 	typedef g2o::LinearSolverCSparse<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
@@ -128,7 +129,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	typedef g2o::VertexSE2 PoseType;
 	typedef g2o::EdgeSE2 OdometryEdge;
 	typedef g2o::EdgeSE2PointXY MeasurementEdge;
-	typedef g2o::EdgePointXY PointAnchorEdge;
+	typedef g2o::EdgeXYPrior PointAnchorEdge;
 	typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1> > SlamBlockSolver;
 	typedef g2o::LinearSolverCSparse<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
 	/**
@@ -161,6 +162,8 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 		int lmExistenceProb_;
 		Eigen::Matrix2d anchorInfo_; /** information for anchor edges, should be low*/
+
+		std::string finalStateFile_;
 
 	} config;
 
@@ -316,6 +319,7 @@ void VectorGLMBSLAM2D::loadConfig(std::string filename) {
 	config.ylim_.push_back(node["ylim"][0].as<double>()) ;
 	config.ylim_.push_back(node["ylim"][1].as<double>()) ;
 
+	config.finalStateFile_ =  node["finalStateFile"].as<std::string>();
 
 
 	if(!YAML::convert<Eigen::Matrix2d>::decode(node["anchorInfo"], config.anchorInfo_)){
@@ -356,15 +360,16 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		for(int i=0; i< config.numGibbs_ ; i++){
 			sampleDA(c);
 		}
-        printFoV(c);
+        //printFoV(c);
         printDA(c);
         //printDAProbs(c);
 		updateGraph(c);
-		c.poses_[0]->fixed();
+		c.poses_[0]->setFixed(true);
 		c.optimizer_->initializeOptimization(c.optimizer_->edges());
-		c.optimizer_->optimize(ni);
+		//c.optimizer_->computeInitialGuess();
+		std::cout <<"niterations  " <<c.optimizer_->optimize(ni) << "\n";
 		calculateWeight(c);
-		std::cout << "weight: " << c.logweight_ << "\n";
+		std::cout << "weight: " << c.logweight_ <<"   chi2:  " <<c.optimizer_->chi2() << "  determinant: " << c.linearSolver_->_determinant<< "\n";
 
 	}
 }
@@ -432,7 +437,7 @@ inline void VectorGLMBSLAM2D::updateGraph(VectorGLMBComponent2D &c) {
 			if(selectedDA>=0){
 
 
-				// if edge was already in graph, remove it before inserting it again
+				// if edge was already in graph, modify it
 				 if(previd>=0){
 					 c.optimizer_->setEdgeVertex(c.Z_[k][nz] , 1 , dynamic_cast<g2o::OptimizableGraph::Vertex*>(c.optimizer_->vertices().find(selectedDA)->second)); // this removes the edge from the list in both vertices
 				 }else{
@@ -567,6 +572,7 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 
 			// setting the topology of DAProbs to include all measurements in current FoV
 			c.DAProbs_[k][nz].i = c.fov_[k];
+			c.DAProbs_[k][nz].i.push_back(-2); // add posibility of false alarm
 			c.DAProbs_[k][nz].l.resize(c.DAProbs_[k][nz].i.size());
 
 			auto it = c.DA_bimap_[k].left.find(nz);
@@ -596,6 +602,9 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 			};
 			if(selectedDA>=0){
 				c.Z_[k][nz]->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(c.optimizer_->vertices().find(selectedDA)->second));
+			}else{
+				c.Z_[k][nz]->setVertex(1, NULL);
+
 			}
 
 		}
@@ -649,8 +658,8 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
     } );
 
 	int lmid = maxid+1;
-	for (double x = config.xlim_[0]; x <= config.xlim_[1]; x += (config.xlim_[1] - config.xlim_[2]) / config.numLandmarks_) {
-		for (double y = config.ylim_[0]; y <= config.ylim_[1]; y += (config.ylim_[1] - config.ylim_[2]) / config.numLandmarks_) {
+	for (double x = config.xlim_[0]; x <= config.xlim_[1]; x += (config.xlim_[1] - config.xlim_[0]) / config.numLandmarks_) {
+		for (double y = config.ylim_[0]; y <= config.ylim_[1]; y += (config.ylim_[1] - config.ylim_[0]) / config.numLandmarks_) {
 			PointType *lm = new PointType();
 			PointAnchorEdge *anchor = new PointAnchorEdge();
 			Eigen::Vector2d xy(x, y);
@@ -662,7 +671,10 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 			anchor->setVertex(0, lm);
 			anchor->setMeasurement(xy);
 			anchor->setInformation(config.anchorInfo_);
-			c.optimizer_->addEdge(anchor);
+
+			if(!c.optimizer_->addEdge(anchor)){
+				std::cerr << "anchor edge insert fail \n";
+			}
 		}
 
 	}
@@ -707,6 +719,8 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 		}
 
 	}
+
+
 
 }
 

@@ -5,25 +5,20 @@ lmExistenceProb: 0.01
 
 
 
-logKappa: 0.01
-
-
-
-PE: 0.05
-
-
-PD: 0.9
-
-
-numGibbs: 3
+logKappa: -6.0
+PE: 0.1
+PD: 0.999
+numGibbs: 1
 numLandmarks: 20
 numComponents: 1
 maxRange: 5
-numLevenbergIterations: 10
+numLevenbergIterations: 50
+
+finalStateFile: optimizedState.g2o
 xlim : [-20.0 , 20.0 ]
 ylim : [-20.0 , 20.0 ]
 
 anchorInfo:
     rows: 2
     cols: 2
-    data: [1,0,0,1]
+    data: [0.1,0,0,0.1]
