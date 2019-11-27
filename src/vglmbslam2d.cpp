@@ -29,7 +29,7 @@ int main(int argc, char* argv[]){
   vglmb.load(g2oFileName);
   vglmb.initComponents();
 
-  vglmb.run(300);
+  vglmb.run(vglmb.config.numIterations_);
   vglmb.components_[0].optimizer_->save(vglmb.config.finalStateFile_.c_str() , 0);
 
 

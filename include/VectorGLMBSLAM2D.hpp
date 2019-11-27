@@ -161,6 +161,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
         int numLevenbergIterations_; /**< number of gibbs samples of the data association */
 
 		int lmExistenceProb_;
+		int numIterations_; /**< number of iterations of main algorithm */
 		Eigen::Matrix2d anchorInfo_; /** information for anchor edges, should be low*/
 
 		std::string finalStateFile_;
@@ -313,6 +314,7 @@ void VectorGLMBSLAM2D::loadConfig(std::string filename) {
 	config.numComponents_ = node["numComponents"].as<int>();
 	config.numLandmarks_ = node["numLandmarks"].as<int>();
 	config.numGibbs_ = node["numGibbs"].as<int>();
+    config.numIterations_ = node["numIterations"].as<int>();
 	config.numLevenbergIterations_ = node["numLevenbergIterations"].as<int>();
 	config.xlim_.push_back(node["xlim"][0].as<double>()) ;
 	config.xlim_.push_back(node["xlim"][1].as<double>()) ;
@@ -367,6 +369,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		c.poses_[0]->setFixed(true);
 		c.optimizer_->initializeOptimization(c.optimizer_->edges());
 		//c.optimizer_->computeInitialGuess();
+		c.optimizer_->setVerbose(true);
 		std::cout <<"niterations  " <<c.optimizer_->optimize(ni) << "\n";
 		calculateWeight(c);
 		std::cout << "weight: " << c.logweight_ <<"   chi2:  " <<c.optimizer_->chi2() << "  determinant: " << c.linearSolver_->_determinant<< "\n";
@@ -555,13 +558,16 @@ threadnum = omp_get_thread_num();
 }
 
 inline void VectorGLMBSLAM2D::updateFoV(VectorGLMBComponent2D &c) {
-	for (int k = 0; k < c.fov_.size(); k++) {
-		for (auto lm : c.landmarks_) {
-			if (distance(c.poses_[k], lm) <= config.maxRange_) {
-				c.fov_[k].push_back(lm->id());
-			}
-		}
-	}
+    for (int k = 0; k < c.fov_.size(); k++) {
+        c.fov_[k].clear();
+        if (c.Z_[k].size() > 0) { // if no measurements we set FoV to empty ,
+            for (auto lm : c.landmarks_) {
+                if (distance(c.poses_[k], lm) <= config.maxRange_) {
+                    c.fov_[k].push_back(lm->id());
+                }
+            }
+        }
+    }
 }
 
 inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
