@@ -368,14 +368,14 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		for(int i=0; i< config.numGibbs_ ; i++){
 			sampleDA(c);
 		}
-        //printFoV(c);
+        printFoV(c);
 		std::ofstream dafile;
 		std::stringstream filename;
 		filename << "DA__" << iteration_ << ".txt";
 		dafile.open(filename.str());
 		std::cout<<" iteraton " <<iteration_++  << " :::: \n";
         printDA(c,dafile);
-        //printDAProbs(c);
+        printDAProbs(c);
 		updateGraph(c);
 		c.poses_[0]->setFixed(true);
 		c.optimizer_->initializeOptimization(c.optimizer_->edges());
@@ -535,8 +535,7 @@ threadnum = omp_get_thread_num();
 					probs.l.push_back(c.DAProbs_[k][nz].l[a]);
 					if (c.DAProbs_[k][nz].l[a] > maxprob)
 						maxprob = c.DAProbs_[k][nz].l[a];
-				}
-				if (c.DAProbs_[k][nz].i[a] == selectedDA) {
+				}else if (c.DAProbs_[k][nz].i[a] == selectedDA ) {
 					probs.i.push_back(c.DAProbs_[k][nz].i[a]);
 					if(c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()] == 1){
 						likelihood += std::log(config.PE_)-std::log(1-config.PE_);
@@ -546,8 +545,7 @@ threadnum = omp_get_thread_num();
 					}
 					if (c.DAProbs_[k][nz].l[a] > maxprob)
 						maxprob = c.DAProbs_[k][nz].l[a];
-				}
-				if (c.DAProbs_[k][nz].i[a] != selectedDA && c.DAProbs_[k][nz].i[a] != -2 ) {
+				}else  {
 					if (c.DA_bimap_[k].right.count(c.DAProbs_[k][nz].i[a]) == 0) {  // landmark is not already associated to another measurement
 						probs.i.push_back(c.DAProbs_[k][nz].i[a]);
 						if(c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()] == 0){
@@ -634,7 +632,7 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 
 					c.DAProbs_[k][nz].l[a] += -0.5 * c.Z_[k][nz]->chi2();
 				}
-			};
+			}
 			if(selectedDA>=0){
 				c.Z_[k][nz]->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(c.optimizer_->vertices().find(selectedDA)->second));
 			}else{
