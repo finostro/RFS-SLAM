@@ -100,8 +100,10 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1> > SlamBlockSolver;
 	typedef g2o::LinearSolverCSparse<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
 	g2o::SparseOptimizer *optimizer_;
+
 	g2o::OptimizationAlgorithmLevenberg *solverLevenberg_;
 	SlamLinearSolver *linearSolver_;
+	SlamBlockSolver *blockSolver_;
 
 	std::vector<boost::bimap<int, int>> DA_bimap_; /**< Bimap containing data association hypothesis at time k  */
 
@@ -353,6 +355,13 @@ inline void VectorGLMBSLAM2D::initComponents() {
 	for (auto &c : components_) {
 		init(c);
 		constructGraph(c);
+
+		// optimize once at the start to calculate the hessian.
+		c.poses_[0]->setFixed(true);
+		c.optimizer_->initializeOptimization(c.optimizer_->edges());
+		//c.optimizer_->computeInitialGuess();
+		c.optimizer_->setVerbose(true);
+		std::cout <<"niterations  " <<c.optimizer_->optimize(1) << "\n";
 	}
 
 }
@@ -604,8 +613,20 @@ inline void VectorGLMBSLAM2D::updateFoV(VectorGLMBComponent2D &c) {
 
 inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 
+    g2o::JacobianWorkspace  jac_ws;
+    MeasurementEdge z;
+    jac_ws.updateSize(2,3);
+    jac_ws.allocate();
+
 	for (int k = 0; k < c.DAProbs_.size(); k++) {
 	    c.DAProbs_[k].resize(c.Z_[k].size());
+
+		double posHLogDet ;
+		if(!c.poses_[k]->fixed()){
+			posHLogDet = std::log(c.poses_[k]->hessianDeterminant());
+		}
+		PoseType::HessianBlockType poseHessian(c.poses_[k]->hessianData());
+
 		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
 
 			// setting the topology of DAProbs to include all measurements in current FoV
@@ -619,22 +640,67 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 				selectedDA = it->second;
 			}
 
-			for (int a = 0; a < c.DAProbs_[k][nz].i.size(); a++) {
-				if (c.DAProbs_[k][nz].i[a] == -2) { // set measurement to false alarm
-					c.DAProbs_[k][nz].l[a] = config.logKappa_
-							+ 0.5 * (c.Z_[k][nz]->dimension() * std::log(2 * M_PI) - std::log(c.Z_[k][nz]->information().determinant()));
-				} else {
+            for (int a = 0; a < c.DAProbs_[k][nz].i.size(); a++) {
+                if (c.DAProbs_[k][nz].i[a] == -2) { // set measurement to false alarm
+                    c.DAProbs_[k][nz].l[a] = config.logKappa_ + 0.5 * (c.Z_[k][nz]->dimension() * std::log(2 * M_PI) - std::log(c.Z_[k][nz]->information().determinant()));
+                } else {
 
+                    c.DAProbs_[k][nz].l[a] += std::log(config.PD_) - std::log(1 - config.PD_);
+                    c.Z_[k][nz]->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(c.optimizer_->vertices().find(c.DAProbs_[k][nz].i[a])->second));
 
-					c.DAProbs_[k][nz].l[a] +=  std::log(config.PD_)-std::log(1-config.PD_);
-					c.Z_[k][nz]->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(c.optimizer_->vertices().find(c.DAProbs_[k][nz].i[a])->second));
-					c.Z_[k][nz]->computeError();
+                    c.Z_[k][nz]->g2o::BaseBinaryEdge<2, g2o::Vector2, g2o::VertexSE2, g2o::VertexPointXY>::linearizeOplus(jac_ws);
+                    c.Z_[k][nz]->computeError();
 
-					c.DAProbs_[k][nz].l[a] += -0.5 * c.Z_[k][nz]->chi2();
-				}
-			}
+                    // if pose is not fixed, calc updated pose and lm
+                    if (!c.poses_[k]->fixed()) {
+                        PointType::HessianBlockType pointHessian(c.landmarks_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()]->hessianData());
+
+                        MeasurementEdge::JacobianXiOplusType Jpose = c.Z_[k][nz]->jacobianOplusXi();
+                        MeasurementEdge::JacobianXjOplusType Jpoint = c.Z_[k][nz]->jacobianOplusXj();
+
+                        Eigen::Matrix<double, PoseType::Dimension + PointType::Dimension, PoseType::Dimension + PointType::Dimension> H;
+                        H.setZero();
+                        H.block(0, 0, PoseType::Dimension, PoseType::Dimension) = poseHessian + Jpose.transpose() * c.Z_[k][nz]->information() * Jpose;
+                        H.block(PoseType::Dimension, PoseType::Dimension, PointType::Dimension, PointType::Dimension) = pointHessian + Jpoint.transpose() * c.Z_[k][nz]->information() * Jpoint;
+                        Eigen::Matrix<double, PoseType::Dimension + PointType::Dimension, 1> b, sol;
+                        b.block(0, 0, PoseType::Dimension, 1) = Jpose.transpose() * c.Z_[k][nz]->error();
+                        b.block(PoseType::Dimension, 0, PointType::Dimension, 1) = Jpoint.transpose() * c.Z_[k][nz]->error();
+
+                        Eigen::LLT<Eigen::Matrix<double, PoseType::Dimension + PointType::Dimension, PoseType::Dimension + PointType::Dimension>> lltofH(H);
+                        sol = lltofH.solve(b);
+
+                        c.DAProbs_[k][nz].l[a] += -std::log(lltofH.matrixL().determinant());
+                        c.DAProbs_[k][nz].l[a] += std::log(c.Z_[k][nz]->information().determinant()) + posHLogDet;
+
+                        c.DAProbs_[k][nz].l[a] += -0.5 * (c.Z_[k][nz]->chi2() - sol.dot(b));
+                        c.DAProbs_[k][nz].l[a] += -0.5 * c.Z_[k][nz]->dimension() * std::log(2 * M_PI);
+                    } else { // if pose is fixed only calculate updated landmark
+                        PointType::HessianBlockType pointHessian(c.landmarks_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()]->hessianData());
+
+                        MeasurementEdge::JacobianXjOplusType Jpoint = c.Z_[k][nz]->jacobianOplusXj();
+
+                        Eigen::Matrix<double, PointType::Dimension, PointType::Dimension> H;
+                        H.setZero();
+                        H = pointHessian + Jpoint.transpose() * c.Z_[k][nz]->information() * Jpoint;
+                        Eigen::Matrix<double, PointType::Dimension, 1> b, sol;
+                        b = Jpoint.transpose() * c.Z_[k][nz]->error();
+
+                        Eigen::LLT<Eigen::Matrix<double,  PointType::Dimension,  PointType::Dimension>> lltofH(H);
+                        sol = lltofH.solve(b);
+
+                        c.DAProbs_[k][nz].l[a] += -std::log(lltofH.matrixL().determinant());
+                        c.DAProbs_[k][nz].l[a] += std::log(c.Z_[k][nz]->information().determinant());
+
+                        c.DAProbs_[k][nz].l[a] += -0.5 * (c.Z_[k][nz]->chi2() - sol.dot(b));
+                        c.DAProbs_[k][nz].l[a] += -0.5 * c.Z_[k][nz]->dimension() * std::log(2 * M_PI);
+
+                    }
+                }
+            }
 			if(selectedDA>=0){
 				c.Z_[k][nz]->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(c.optimizer_->vertices().find(selectedDA)->second));
+				c.Z_[k][nz]->linearizeOplus();
+				c.Z_[k][nz]->computeError();
 			}else{
 				c.Z_[k][nz]->setVertex(1, NULL);
 
@@ -762,9 +828,13 @@ inline void VectorGLMBSLAM2D::init(VectorGLMBComponent2D &c) {
 	auto linearSolver = g2o::make_unique<SlamLinearSolver>();
 	linearSolver->setBlockOrdering(false);
 	c.linearSolver_ = linearSolver.get();
-	c.solverLevenberg_ = new g2o::OptimizationAlgorithmLevenberg(g2o::make_unique<SlamBlockSolver>(std::move(linearSolver)));
+	auto blockSolver =  g2o::make_unique<SlamBlockSolver>(std::move(linearSolver));
+	c.blockSolver_ = blockSolver.get();
+	c.solverLevenberg_ = new g2o::OptimizationAlgorithmLevenberg(std::move(blockSolver));
+
 	c.optimizer_ =  new g2o::SparseOptimizer();
 	c.optimizer_->setAlgorithm(c.solverLevenberg_);
+
 }
 
 }
