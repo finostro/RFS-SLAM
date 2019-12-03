@@ -374,7 +374,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 	for (auto &c : components_) {
 		updateFoV(c);
 		updateDAProbs(c);
-		double expectedChange=0;;
+		double expectedChange=0;
 		for(int i=0; i< config.numGibbs_ ; i++){
 			expectedChange += sampleDA(c);
 		}
@@ -393,6 +393,10 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		c.optimizer_->setVerbose(false);
 		std::cout <<"niterations  " <<c.optimizer_->optimize(ni) << "\n";
 		calculateWeight(c);
+
+		double accept = std::min(1.0 ,  std::exp(c.logweight_-c.prevLogWeight_ - expectedChange));
+
+		std::cout << "accept: " << accept << "\n";
 		std::cout << "weight: " << c.logweight_ << " prevWeight: " << c.prevLogWeight_ << " expectedChange " << expectedChange << "   chi2:  " <<c.optimizer_->chi2() << "  determinant: " << c.linearSolver_->_determinant<< "\n";
 
 	}
