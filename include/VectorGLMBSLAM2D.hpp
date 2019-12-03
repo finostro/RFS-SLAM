@@ -241,7 +241,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 * Use the probabilities calculated using updateDAProbs to sample a new data association through gibbs sampling
 	 * @param c the GLMB component
 	 */
-	void sampleDA(VectorGLMBComponent2D &c);
+	double sampleDA(VectorGLMBComponent2D &c);
 
     /**
      * print the data association in component c
@@ -374,10 +374,11 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 	for (auto &c : components_) {
 		updateFoV(c);
 		updateDAProbs(c);
+		double expectedChange;
 		for(int i=0; i< config.numGibbs_ ; i++){
-			sampleDA(c);
+			expectedChange= sampleDA(c);
 		}
-        printFoV(c);
+        //printFoV(c);
 		std::ofstream dafile;
 		std::stringstream filename;
 		filename << "DA__" << iteration_ << ".txt";
@@ -389,10 +390,10 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		c.poses_[0]->setFixed(true);
 		c.optimizer_->initializeOptimization(c.optimizer_->edges());
 		//c.optimizer_->computeInitialGuess();
-		c.optimizer_->setVerbose(true);
+		c.optimizer_->setVerbose(false);
 		std::cout <<"niterations  " <<c.optimizer_->optimize(ni) << "\n";
 		calculateWeight(c);
-		std::cout << "weight: " << c.logweight_ <<"   chi2:  " <<c.optimizer_->chi2() << "  determinant: " << c.linearSolver_->_determinant<< "\n";
+		std::cout << "weight: " << c.logweight_ << " prevWeight: " << c.prevLogWeight_ << " expectedChange " << expectedChange << "   chi2:  " <<c.optimizer_->chi2() << "  determinant: " << c.linearSolver_->_determinant<< "\n";
 
 	}
 }
@@ -505,7 +506,7 @@ inline void VectorGLMBSLAM2D::printDAProbs(VectorGLMBComponent2D &c) {
         for(int nz=0; nz < c.DAProbs_[k].size(); nz++){
             std::cout <<"z =  "<< nz << "  ;";
             for(double l:c.DAProbs_[k][nz].l){
-                std::cout<< l << " , ";
+                std::cout<< std::max(l,-100.0) << " , ";
             }
             std::cout << "\n";
         }
@@ -518,7 +519,7 @@ inline void VectorGLMBSLAM2D::printDA(VectorGLMBComponent2D &c, std::ostream &s)
         print_map(c.DA_bimap_[k].left,s);
     }
 }
-inline void VectorGLMBSLAM2D::sampleDA(VectorGLMBComponent2D &c) {
+inline double VectorGLMBSLAM2D::sampleDA(VectorGLMBComponent2D &c) {
 	boost::uniform_real<> uni_dist(0, 1);
 	int threadnum = 0;
 #ifdef _OPENMP
@@ -526,6 +527,7 @@ threadnum = omp_get_thread_num();
 #endif
 
 	AssociationProbabilities probs;
+	double expectedWeightChange = 0;
 	for (int k = 0; k < c.DAProbs_.size(); k++) {
 
 		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
@@ -533,6 +535,7 @@ threadnum = omp_get_thread_num();
 			probs.l.clear();
 			double maxprob = -std::numeric_limits<double>::infinity();
 			auto it = c.DA_bimap_[k].left.find(nz);
+			double selectedProb;
 			int selectedDA = -2;
 			if (it != c.DA_bimap_[k].left.end()) {
 				selectedDA = it->second;
@@ -574,7 +577,7 @@ threadnum = omp_get_thread_num();
 				p = std::exp(p - maxprob);
 			}
 			size_t sample = GibbsSampler::sample(randomGenerators_[threadnum], probs.l);
-
+			expectedWeightChange+= std::log(probs.l[sample]);
 			if (probs.i[sample] != selectedDA) { // if selected association, change bimap
 
 				if (probs.i[sample] >= 0) {
@@ -596,6 +599,7 @@ threadnum = omp_get_thread_num();
 		}
 	}
 
+	return expectedWeightChange;
 }
 
 inline void VectorGLMBSLAM2D::updateFoV(VectorGLMBComponent2D &c) {
@@ -615,7 +619,7 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 
     g2o::JacobianWorkspace  jac_ws;
     MeasurementEdge z;
-    jac_ws.updateSize(2,3);
+    jac_ws.updateSize(2,2*3);
     jac_ws.allocate();
 
 	for (int k = 0; k < c.DAProbs_.size(); k++) {
@@ -626,6 +630,7 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 			posHLogDet = std::log(c.poses_[k]->hessianDeterminant());
 		}
 		PoseType::HessianBlockType poseHessian(c.poses_[k]->hessianData());
+
 
 		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
 
@@ -639,11 +644,17 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 			if (it != c.DA_bimap_[k].left.end()) {
 				selectedDA = it->second;
 			}
-
+			Eigen::Matrix<double ,PoseType::HessianBlockType::RowsAtCompileTime ,PoseType::HessianBlockType::ColsAtCompileTime > poseHessianCopy = poseHessian;
+			if (selectedDA>=0){
+                c.Z_[k][nz]->g2o::BaseBinaryEdge<2, g2o::Vector2, g2o::VertexSE2, g2o::VertexPointXY>::linearizeOplus(jac_ws);
+                MeasurementEdge::JacobianXiOplusType Jpose = c.Z_[k][nz]->jacobianOplusXi();
+				poseHessianCopy -=  Jpose.transpose() * c.Z_[k][nz]->information() * Jpose;
+			}
             for (int a = 0; a < c.DAProbs_[k][nz].i.size(); a++) {
                 if (c.DAProbs_[k][nz].i[a] == -2) { // set measurement to false alarm
-                    c.DAProbs_[k][nz].l[a] = config.logKappa_ + 0.5 * (c.Z_[k][nz]->dimension() * std::log(2 * M_PI) - std::log(c.Z_[k][nz]->information().determinant()));
+                    c.DAProbs_[k][nz].l[a] = config.logKappa_ ;
                 } else {
+
 
                     c.DAProbs_[k][nz].l[a] += std::log(config.PD_) - std::log(1 - config.PD_);
                     c.Z_[k][nz]->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(c.optimizer_->vertices().find(c.DAProbs_[k][nz].i[a])->second));
@@ -660,8 +671,12 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 
                         Eigen::Matrix<double, PoseType::Dimension + PointType::Dimension, PoseType::Dimension + PointType::Dimension> H;
                         H.setZero();
-                        H.block(0, 0, PoseType::Dimension, PoseType::Dimension) = poseHessian + Jpose.transpose() * c.Z_[k][nz]->information() * Jpose;
+
+                        H.block(0, 0, PoseType::Dimension, PoseType::Dimension) = poseHessianCopy + Jpose.transpose() * c.Z_[k][nz]->information() * Jpose;
                         H.block(PoseType::Dimension, PoseType::Dimension, PointType::Dimension, PointType::Dimension) = pointHessian + Jpoint.transpose() * c.Z_[k][nz]->information() * Jpoint;
+
+                        H.block(PoseType::Dimension, 0, PointType::Dimension, PoseType::Dimension) = Jpoint.transpose() * c.Z_[k][nz]->information() * Jpose;
+                        H.block(0, PoseType::Dimension, PoseType::Dimension, PointType::Dimension) = H.block(PoseType::Dimension, 0, PointType::Dimension, PoseType::Dimension).transpose() ;
                         Eigen::Matrix<double, PoseType::Dimension + PointType::Dimension, 1> b, sol;
                         b.block(0, 0, PoseType::Dimension, 1) = Jpose.transpose() * c.Z_[k][nz]->error();
                         b.block(PoseType::Dimension, 0, PointType::Dimension, 1) = Jpoint.transpose() * c.Z_[k][nz]->error();
