@@ -654,6 +654,7 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 				poseHessianCopy -=  Jpose.transpose() * c.Z_[k][nz]->information() * Jpose;
 			}
             for (int a = 0; a < c.DAProbs_[k][nz].i.size(); a++) {
+                c.DAProbs_[k][nz].l[a] =0;
                 if (c.DAProbs_[k][nz].i[a] == -2) { // set measurement to false alarm
                     c.DAProbs_[k][nz].l[a] = config.logKappa_ ;
                 } else {
