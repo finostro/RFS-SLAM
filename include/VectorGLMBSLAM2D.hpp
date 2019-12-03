@@ -60,6 +60,7 @@
 #include "g2o/types/slam2d/edge_se2.h"
 #include "g2o/types/slam2d/edge_xy_prior.h"
 #include <boost/random/uniform_real.hpp>
+
 #include <boost/bimap.hpp>
 #include <yaml-cpp/yaml.h>
 
@@ -105,7 +106,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	SlamLinearSolver *linearSolver_;
 	SlamBlockSolver *blockSolver_;
 
-	std::vector<boost::bimap<int, int>> DA_bimap_; /**< Bimap containing data association hypothesis at time k  */
+	std::vector<boost::bimap<int, int>> DA_bimap_, prevDA_bimap_; /**< Bimap containing data association hypothesis at time k  */
 
 	std::vector<std::vector<MeasurementEdge*> > Z_; /**< Measurement edges stored, in order to set data association and add to graph later */
 	std::vector<std::vector<AssociationProbabilities> > DAProbs_; /**< DAProbs_ [k][nz] are is the association probabilities of measurement
@@ -244,6 +245,12 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	double sampleDA(VectorGLMBComponent2D &c);
 
     /**
+     * Revert the current data association to keep the last one
+     * @param c the GLMB component
+     */
+    double revertDA(VectorGLMBComponent2D &c);
+
+    /**
      * print the data association in component c
      * @param c the GLMB component
      */
@@ -374,6 +381,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 	for (auto &c : components_) {
 		updateFoV(c);
 		updateDAProbs(c);
+		c.prevDA_bimap_ = c.DA_bimap_;
 		double expectedChange=0;
 		for(int i=0; i< config.numGibbs_ ; i++){
 			expectedChange += sampleDA(c);
@@ -395,6 +403,13 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		calculateWeight(c);
 
 		double accept = std::min(1.0 ,  std::exp(c.logweight_-c.prevLogWeight_ - expectedChange));
+	    int threadnum = 0;
+	#ifdef _OPENMP
+	threadnum = omp_get_thread_num();
+	#endif
+	boost::uniform_real<> uni_dist(0, 1);
+
+	uni_dist(rfs::randomGenerators_[threadnum]);
 
 		std::cout << "accept: " << accept << "\n";
 		std::cout << "weight: " << c.logweight_ << " prevWeight: " << c.prevLogWeight_ << " expectedChange " << expectedChange << "   chi2:  " <<c.optimizer_->chi2() << "  determinant: " << c.linearSolver_->_determinant<< "\n";
@@ -523,6 +538,14 @@ inline void VectorGLMBSLAM2D::printDA(VectorGLMBComponent2D &c, std::ostream &s)
         print_map(c.DA_bimap_[k].left,s);
     }
 }
+
+
+inline double VectorGLMBSLAM2D::revertDA(VectorGLMBComponent2D &c) {
+    c.logweight_ = c.prevLogWeight_;
+    c.DA_bimap_  = c.prevDA_bimap_;
+    updateGraph(c);
+}
+
 inline double VectorGLMBSLAM2D::sampleDA(VectorGLMBComponent2D &c) {
 	boost::uniform_real<> uni_dist(0, 1);
 	int threadnum = 0;
