@@ -365,7 +365,7 @@ inline void VectorGLMBSLAM2D::initComponents() {
 
 		// optimize once at the start to calculate the hessian.
 		c.poses_[0]->setFixed(true);
-		c.optimizer_->initializeOptimization(c.optimizer_->edges());
+		c.optimizer_->initializeOptimization();
 		//c.optimizer_->computeInitialGuess();
 		c.optimizer_->setVerbose(true);
 		std::cout <<"niterations  " <<c.optimizer_->optimize(1) << "\n";
@@ -497,6 +497,20 @@ inline void VectorGLMBSLAM2D::updateGraph(VectorGLMBComponent2D &c) {
 			}
 
 		}
+	}
+	for(auto lm:c.landmarks_){
+	    // if landmark has only 1 edge then it is not detected we deactivate it
+	    if (lm->edges().size() == 1){
+	        for(auto edge : lm->edges()){
+	            dynamic_cast<g2o::OptimizableGraph::Edge*>(edge)->setLevel(1);
+	        }
+	    }else{
+            for(auto edge : lm->edges()){
+                dynamic_cast<g2o::OptimizableGraph::Edge*>(edge)->setLevel(0);
+            }
+
+	    }
+
 	}
 }
 template< class MapType >
@@ -695,7 +709,15 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 
                     // if pose is not fixed, calc updated pose and lm
                     if (!c.poses_[k]->fixed()) {
-                        PointType::HessianBlockType pointHessian(c.landmarks_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()]->hessianData());
+                        PointType::HessianBlockType::PlainMatrix h;
+                        PointType::HessianBlockType pointHessian(h.data());
+                        if(c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()] ==0){
+                            new (&pointHessian) PointType::HessianBlockType(c.landmarks_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()]->hessianData());
+                        }
+                        else{
+                            h =  config.anchorInfo_;
+
+                        }
 
                         MeasurementEdge::JacobianXiOplusType Jpose = c.Z_[k][nz]->jacobianOplusXi();
                         MeasurementEdge::JacobianXjOplusType Jpoint = c.Z_[k][nz]->jacobianOplusXj();
