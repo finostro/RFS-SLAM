@@ -376,7 +376,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		updateDAProbs(c);
 		double expectedChange;
 		for(int i=0; i< config.numGibbs_ ; i++){
-			expectedChange= sampleDA(c);
+			expectedChange += sampleDA(c);
 		}
         //printFoV(c);
 		std::ofstream dafile;
@@ -570,14 +570,17 @@ threadnum = omp_get_thread_num();
 							maxprob = c.DAProbs_[k][nz].l[a];
 					}
 				}
+				if(c.DAProbs_[k][nz].i[a] == selectedDA ){
+				    expectedWeightChange -= probs.l[probs.l.size()-1];
+				}
 				}
 
-
-			for (auto &p : probs.l) {
+			auto P= probs.l;
+			for (auto &p : P) {
 				p = std::exp(p - maxprob);
 			}
-			size_t sample = GibbsSampler::sample(randomGenerators_[threadnum], probs.l);
-			expectedWeightChange+= std::log(probs.l[sample]);
+			size_t sample = GibbsSampler::sample(randomGenerators_[threadnum], P);
+			expectedWeightChange+= probs.l[sample];
 			if (probs.i[sample] != selectedDA) { // if selected association, change bimap
 
 				if (probs.i[sample] >= 0) {
