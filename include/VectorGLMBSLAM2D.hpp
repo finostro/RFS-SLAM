@@ -48,6 +48,7 @@
 #include "AssociationSampler.hpp"
 
 
+
 #include "g2o/core/block_solver.h"
 #include "g2o/core/optimization_algorithm_levenberg.h"
 #include "g2o/solvers/csparse/linear_solver_csparse.h"
@@ -75,6 +76,13 @@
 #endif
 
 namespace rfs {
+
+struct bimap_less {
+	 bool operator()(const boost::bimap<int, int> x, const boost::bimap<int, int> y) const {
+
+		return x.left < y.left;
+	}
+};
 
 /**
  *  The weight and index of a landmarks from which a measurement can come from
@@ -115,10 +123,13 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	std::vector<PoseType*> poses_;
 	std::vector<PointType*> landmarks_;
-	std::vector<int> landmarks_numDetections_;
+	std::vector<int> landmarks_numDetections_,prevlandmarks_numDetections_,landmarks_numFoV_;
+	std::vector<double> landmarksResetProb_,landmarksInitProb_;
 
-	double logweight_,prevLogWeight_;
+	double logweight_= -std::numeric_limits<double>::infinity()
+	,prevLogWeight_ = -std::numeric_limits<double>::infinity();
 	int numPoses_, numPoints_;
+	bool reverted_ = false;
 };
 
 /**
@@ -168,6 +179,8 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 		int lmExistenceProb_;
 		int numIterations_; /**< number of iterations of main algorithm */
+		double initTemp_;
+		double tempFactor_;
 		Eigen::Matrix2d anchorInfo_; /** information for anchor edges, should be low*/
 
 		std::string finalStateFile_;
@@ -203,6 +216,8 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 */
 	void initComponents();
 
+
+
 	/**
 	 * run the optimization over the possible data associations.
 	 * @param numsteps number of iterations in algorithm.
@@ -213,6 +228,13 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 * @param ni number of iterations of the optimizer
 	 */
 	void optimize(int ni);
+
+
+	/**
+	 * Sample n data associations from the already visited group, in order to perform gibbs sampler on each.
+	 * @param ni number of iterations of the optimizer
+	 */
+	void sampleComponents();
 
 	/**
 	 * Use the data association stored in DA_ to create the graph.
@@ -244,11 +266,30 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 */
 	double sampleDA(VectorGLMBComponent2D &c);
 
+	/**
+	 * Use the probabilities calculated in sampleDA to reset all the detections of a single landmark to all false alarms.
+	 * @param c the GLMB component
+	 */
+	double sampleLMDeath(VectorGLMBComponent2D &c);
+
+
+	/**
+	 * Use the probabilities calculated in sampleDA to initialize landmarks from  false alarms.
+	 * @param c the GLMB component
+	 */
+	double sampleLMBirth(VectorGLMBComponent2D &c);
+
+	/**
+	 * Change the data association in component c to the one stored on da.
+	 */
+	void changeDA(VectorGLMBComponent2D &c  , const std::vector<boost::bimap<int, int> > &da);
+
+
     /**
      * Revert the current data association to keep the last one
      * @param c the GLMB component
      */
-    double revertDA(VectorGLMBComponent2D &c);
+    void revertDA(VectorGLMBComponent2D &c);
 
     /**
      * print the data association in component c
@@ -289,10 +330,15 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	VectorGLMBComponent2D gt_graph;
 
 	std::vector<VectorGLMBComponent2D> components_; /**< VGLMB components */
+	double bestWeight_=-std::numeric_limits<double>::infinity();
+	std::vector<boost::bimap<int, int>> best_DA_;
+	std::map<std::vector<boost::bimap<int, int>>, double > visited_;
+	double temp_;
 
 	int iteration_=0;
 
 };
+
 
 //////////////////////////////// Implementation ////////////////////////
 
@@ -308,12 +354,147 @@ VectorGLMBSLAM2D::VectorGLMBSLAM2D() {
 VectorGLMBSLAM2D::~VectorGLMBSLAM2D() {
 
 }
+void VectorGLMBSLAM2D::changeDA(VectorGLMBComponent2D &c,
+		const std::vector<boost::bimap<int, int> > &da) {
+	// update bimaps!!!
+	c.DA_bimap_ = da;
+
+	// update the numdetections
+	std::fill(c.landmarks_numDetections_.begin(),
+			c.landmarks_numDetections_.end(), 0);
+	for (auto &bimap : da) {
+		for (auto it = bimap.begin(), it_end = bimap.end(); it != it_end; it++) {
+			c.landmarks_numDetections_[it->right -c.landmarks_[0]->id()]++;
+		}
+	}
+	updateGraph(c);
+	c.poses_[0]->setFixed(true);
+	c.optimizer_->initializeOptimization();
+	//c.optimizer_->computeInitialGuess();
+	c.optimizer_->setVerbose(false);
+	c.optimizer_->optimize(config.numLevenbergIterations_) ;
+
+
+}
+void VectorGLMBSLAM2D::sampleComponents(){
+
+	// do logsumexp on the components to calculate probabilities
+
+	std::vector<double> probs(visited_.size(), 0);
+	double maxw = -std::numeric_limits<double>::infinity();
+	for(auto it = visited_.begin(), it_end= visited_.end(); it!=it_end ; it++){
+		if(it->second >maxw)
+			maxw = it->second ;
+	}
+	 int i=1 ;
+	 probs[0] = std::exp((visited_.begin()->second - maxw)/temp_);
+	for(auto it = std::next(visited_.begin()), it_end= visited_.end(); it!=it_end ;i++, it++){
+		if(it->second >maxw)
+		maxw = it->second ;
+		 probs[i] = probs[i-1]+ std::exp((it->second - maxw)/temp_);
+	}
+
+	/* std:: cout << "maxw " << maxw <<  "  temp " << temp_ << "\n";
+	std::cout << "probs " ;
+	for (auto p:probs){std::cout <<"  " << p;}
+	std::cout <<"\n";
+	*/
+	boost::uniform_real<> dist(0.0 , probs[probs.size()-1]/components_.size());
+
+	double r = dist(randomGenerators_[0]);
+	int j=0;
+	auto it = visited_.begin();
+	for(int i = 0 ; i < components_.size(); i++){
+		while( probs[j] < r ){
+			j++;
+			it++;
+		}
+
+
+		// add data association j to component i
+		changeDA(components_[i] , it->first);
+		components_[i].logweight_ = it->second;
+
+		//std::cout  << "sample w: " << it->second << " j " << j  << " r " << r <<" prob "  << probs[j]<< "\n";
+
+
+		r+=probs[probs.size()-1]/components_.size();
+
+	}
+
+
+
+
+}
+
 
 void VectorGLMBSLAM2D::load(std::string filename) {
 	std::ifstream ifs (filename, std::ifstream::in);
 
 	gt_graph.optimizer_->load(ifs);
+
 	ifs.close();
+
+	gt_graph.numPoses_ = 0;
+	gt_graph.numPoints_ = 0;
+	//Copy Vertices from optimizer with data association
+	int maxid=0;
+	for (auto pair : gt_graph.optimizer_->vertices()) {
+	    g2o::HyperGraph::Vertex *v =pair.second;
+		PoseType *pose = dynamic_cast<PoseType*>(v);
+		if (pose != NULL) {
+
+			gt_graph.poses_.push_back(pose);
+			gt_graph.numPoses_++;
+
+			if (maxid <pose->id()){
+			    maxid = pose->id();
+			}
+		}
+		//sort by id
+
+
+
+		 PointType* point = dynamic_cast<PointType*>(v);
+		 if (point != NULL) {
+
+		 gt_graph.landmarks_.push_back(point);
+		 gt_graph.numPoints_++;
+		 }
+
+	}
+    std::sort(gt_graph.poses_.begin(),gt_graph.poses_.end(),  [] (const auto& lhs, const auto& rhs) {
+        return lhs->id() < rhs->id();
+    } );
+    std::sort(gt_graph.landmarks_.begin(),gt_graph.landmarks_.end(),  [] (const auto& lhs, const auto& rhs) {
+        return lhs->id() < rhs->id();
+    } );
+
+
+    gt_graph.DA_bimap_.resize(gt_graph.numPoses_);
+
+
+    gt_graph.Z_.resize(gt_graph.numPoses_);
+    gt_graph.fov_.resize(gt_graph.numPoses_);
+    gt_graph.landmarks_numDetections_.resize(gt_graph.landmarks_.size(),1);
+	for (g2o::HyperGraph::Edge *e : gt_graph.optimizer_->edges()) {
+
+
+		MeasurementEdge *z = dynamic_cast<MeasurementEdge*>(e);
+		if (z != NULL) {
+			int firstvertex = z->vertex(0)->id();
+			gt_graph.Z_[firstvertex - gt_graph.poses_[0]->id()].push_back(z);
+			gt_graph.fov_[firstvertex - gt_graph.poses_[0]->id()].push_back(z->vertex(1)->id());
+		}
+
+	}
+
+	gt_graph.poses_[0]->setFixed(true);
+	gt_graph.optimizer_->initializeOptimization();
+	gt_graph.optimizer_->optimize(10);
+
+
+
 }
 
 void VectorGLMBSLAM2D::loadConfig(std::string filename) {
@@ -335,6 +516,8 @@ void VectorGLMBSLAM2D::loadConfig(std::string filename) {
 	config.xlim_.push_back(node["xlim"][1].as<double>()) ;
 	config.ylim_.push_back(node["ylim"][0].as<double>()) ;
 	config.ylim_.push_back(node["ylim"][1].as<double>()) ;
+	config.initTemp_ = node["initTemp"].as<double>();
+	config.tempFactor_ = node["tempFactor"].as<double>();
 
 	config.finalStateFile_ =  node["finalStateFile"].as<std::string>();
 
@@ -358,6 +541,8 @@ void VectorGLMBSLAM2D::loadConfig(std::string filename) {
 
 inline void VectorGLMBSLAM2D::initComponents() {
 	components_.resize(config.numComponents_);
+	gt_graph.optimizer_->computeInitialGuess();
+	gt_graph.optimizer_->save("inittraj.g2o");
 
 	for (auto &c : components_) {
 		init(c);
@@ -378,43 +563,102 @@ inline void VectorGLMBSLAM2D::run(int numSteps) {
     }
 }
 inline void VectorGLMBSLAM2D::optimize(int ni) {
-	for (auto &c : components_) {
+
+	if(visited_.size()>0){
+		sampleComponents();
+		std::cout << "sampling compos \n";
+	}
+
+#pragma omp parallel for
+	for (int i=0; i< components_.size(); i++) {
+		auto &c = components_[i];
+
+	    int threadnum = 0;
+	#ifdef _OPENMP
+	threadnum = omp_get_thread_num();
+	#endif
+
+
+
 		updateFoV(c);
-		updateDAProbs(c);
+		if(!c.reverted_)
+			updateDAProbs(c);
 		c.prevDA_bimap_ = c.DA_bimap_;
+		c.prevlandmarks_numDetections_ = c.landmarks_numDetections_;
 		double expectedChange=0;
-		for(int i=0; i< config.numGibbs_ ; i++){
+		bool inserted;
+		std::map<std::vector<boost::bimap<int, int>> , double>::iterator it;
+//do{
+		expectedChange += sampleDA(c);
+		expectedChange += sampleLMDeath(c);
+		expectedChange += sampleLMBirth(c);
+
+		for(int i=1; i< config.numGibbs_ ; i++){
 			expectedChange += sampleDA(c);
+			//
 		}
+		expectedChange += sampleLMDeath(c);
+		expectedChange += sampleLMBirth(c);
+		//expectedChange += sampleLMDeath(c);
+		auto pair =std::make_pair( c.DA_bimap_, c.logweight_);
+#pragma omp critical(insert)
+		std::tie(it, inserted) = visited_.insert(pair);
+		if(!inserted){
+			std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~data association already inserted\n";
+		}
+//}while(!inserted);
         //printFoV(c);
+		if(i==0){
 		std::ofstream dafile;
 		std::stringstream filename;
 		filename << "DA__" << iteration_ << ".txt";
 		dafile.open(filename.str());
 		std::cout<<" iteraton " <<iteration_++  << " :::: \n";
         printDA(c,dafile);
-        printDAProbs(c);
+		}
+        //printDAProbs(c);
 		updateGraph(c);
 		c.poses_[0]->setFixed(true);
-		c.optimizer_->initializeOptimization(c.optimizer_->edges());
+		c.optimizer_->initializeOptimization();
 		//c.optimizer_->computeInitialGuess();
 		c.optimizer_->setVerbose(false);
 		std::cout <<"niterations  " <<c.optimizer_->optimize(ni) << "\n";
 		calculateWeight(c);
 
-		double accept = std::min(1.0 ,  std::exp(c.logweight_-c.prevLogWeight_ - expectedChange));
-	    int threadnum = 0;
-	#ifdef _OPENMP
-	threadnum = omp_get_thread_num();
-	#endif
+#pragma omp critical(bestweight)
+		{
+		if(c.logweight_> bestWeight_){
+			bestWeight_=c.logweight_;
+			best_DA_ = c.DA_bimap_;
+			std::cout << "===================================================newbest======================================================================================================\n";
+		}
+		}
+		it->second = c.logweight_;
+		double accept = std::min(1.0 ,  std::exp(c.logweight_-c.prevLogWeight_ - std::min(expectedChange, 0.0) ));
+
+
 	boost::uniform_real<> uni_dist(0, 1);
 
-	uni_dist(rfs::randomGenerators_[threadnum]);
+	std::cout << "accept: " << accept << "thred " << threadnum<<"\n";
+	std::cout << "weight: " << c.logweight_ << " prevWeight: " << c.prevLogWeight_ << " expectedChange " << expectedChange << "   chi2:  " <<c.optimizer_->activeChi2() << "  determinant: " << c.linearSolver_->_determinant<< "\n";
 
-		std::cout << "accept: " << accept << "\n";
-		std::cout << "weight: " << c.logweight_ << " prevWeight: " << c.prevLogWeight_ << " expectedChange " << expectedChange << "   chi2:  " <<c.optimizer_->chi2() << "  determinant: " << c.linearSolver_->_determinant<< "\n";
+/*
+	if(uni_dist(rfs::randomGenerators_[threadnum]) > accept){
+		std::cout << "===================================================REVERT========================================================\n";
+		revertDA(c);
+	}else{
+		c.reverted_= false;
+	} */
+
+
+
 
 	}
+
+
+
+
+	temp_*=config.tempFactor_;
 }
 inline void VectorGLMBSLAM2D::calculateWeight(VectorGLMBComponent2D &c) {
 	double logw = 0;
@@ -441,7 +685,7 @@ inline void VectorGLMBSLAM2D::calculateWeight(VectorGLMBComponent2D &c) {
 			if(c.DA_bimap_[k].right.count(c.fov_[k][lm]) >0){
 				logw+=std::log(config.PD_);
 			}else{
-				bool exists = c.optimizer_->vertex(c.fov_[k][lm])->edges().size()>1;
+				bool exists = c.landmarks_numDetections_[c.fov_[k][lm]-c.landmarks_[0]->id()]>0;
 				if (exists){
 				logw+=std::log(1-config.PD_);
 				}
@@ -450,14 +694,14 @@ inline void VectorGLMBSLAM2D::calculateWeight(VectorGLMBComponent2D &c) {
 	}
 
 	for(int lm=0; lm < c.landmarks_.size() ; lm++){
-		bool exists = c.landmarks_[lm]->edges().size()>1;
+		bool exists = c.landmarks_numDetections_[lm]>0;
 		if (exists){
 			logw+=std::log(config.PE_);
 		}else{
 			logw+=std::log(1-config.PE_);
 		}
 	}
-	logw+= -0.5*(c.optimizer_->chi2() + c.linearSolver_->_determinant);
+	logw+= -0.5*(c.optimizer_->activeChi2() + c.linearSolver_->_determinant);
 	c.prevLogWeight_ = c.logweight_;
 	c.logweight_ = logw;
 }
@@ -554,11 +798,118 @@ inline void VectorGLMBSLAM2D::printDA(VectorGLMBComponent2D &c, std::ostream &s)
 }
 
 
-inline double VectorGLMBSLAM2D::revertDA(VectorGLMBComponent2D &c) {
+inline void VectorGLMBSLAM2D::revertDA(VectorGLMBComponent2D &c) {
     c.logweight_ = c.prevLogWeight_;
     c.DA_bimap_  = c.prevDA_bimap_;
+    c.landmarks_numDetections_  = c.prevlandmarks_numDetections_;
     updateGraph(c);
+    c.reverted_ = true;
 }
+
+inline double VectorGLMBSLAM2D::sampleLMBirth(VectorGLMBComponent2D &c) {
+	double expectedWeightChange=0;
+	boost::uniform_real<> uni_dist(0, 1);
+	int threadnum = 0;
+#ifdef _OPENMP
+threadnum = omp_get_thread_num();
+#endif
+
+for(int i=0; i< c.landmarks_.size() ; i++){
+	if(c.landmarks_numDetections_[i] >0 || c.landmarks_numFoV_[i]==0){
+		continue;
+	}
+	//
+	c.landmarksInitProb_[i] = c.landmarksInitProb_[i] / (c.landmarks_numFoV_[i] *config.PD_);
+	if (c.landmarksInitProb_[i]   > uni_dist(randomGenerators_[threadnum])){
+		// reset all associations to false alarms
+		expectedWeightChange += (config.logKappa_+(1-config.PD_))*c.landmarks_numFoV_[i];
+		int numdet=0;
+		for (int k  = 0; k< c.poses_.size() ; k++ ){
+			for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
+				// if measurement is associated, continue
+				auto it = c.DA_bimap_[k].left.find(nz);
+				if (it!=c.DA_bimap_[k].left.end()){
+					continue;
+				}
+				for(int a=0; a< c.DAProbs_[k][nz].i.size() ; a++){
+					if(c.DAProbs_[k][nz].i[a] == c.landmarks_[i]->id()){
+						if(c.DAProbs_[k][nz].l[a] > c.DAProbs_[k][nz].l[c.DAProbs_[k][nz].l.size()-1]){
+							c.DA_bimap_[k].insert( { nz, c.landmarks_[i]->id() });
+							c.landmarks_numDetections_[i]++;
+							expectedWeightChange+= c.DAProbs_[k][nz].l[a] - c.DAProbs_[k][nz].l[c.DAProbs_[k][nz].l.size()-1];
+						}
+
+					}
+				}
+
+
+
+			}
+
+		}
+		expectedWeightChange += std::log(config.PE_) -std::log(1-config.PE_)   ;
+
+		std::cout << "\033[0;32m LANDMARK BORN\033[0m initprob: " << c.landmarksInitProb_[i]<< " numDet "<< c.landmarks_numDetections_[i]<< " numfov: " <<c.landmarks_numFoV_[i] << "  expectedChange "<< expectedWeightChange << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+
+		c.landmarks_numDetections_[i]=0;
+
+	}
+}
+
+
+//std::cout << "Death Change  " <<expectedWeightChange <<"\n";
+return expectedWeightChange;
+}
+
+inline double VectorGLMBSLAM2D::sampleLMDeath(VectorGLMBComponent2D &c) {
+	double expectedWeightChange=0;
+	boost::uniform_real<> uni_dist(0, 1);
+	int threadnum = 0;
+#ifdef _OPENMP
+threadnum = omp_get_thread_num();
+#endif
+
+
+	for(int i=0; i< c.landmarks_.size() ; i++){
+		if(c.landmarks_numDetections_[i] <=1){
+			continue;
+		}
+		//
+		c.landmarksResetProb_[i] += - c.landmarks_numFoV_[i]*std::log(1-config.PD_);
+		if (1/(1+std::exp(-c.landmarksResetProb_[i]))  > uni_dist(randomGenerators_[threadnum])){
+			// reset all associations to false alarms
+			expectedWeightChange += config.logKappa_*c.landmarks_numDetections_[i];
+			int numdet=0;
+			for (int k  = 0; k< c.poses_.size() ; k++ ){
+				auto it = c.DA_bimap_[k].right.find(c.landmarks_[i]->id());
+				if (it != c.DA_bimap_[k].right.end()) {
+					for(int l =0; l < c.DAProbs_[k][it->second].i.size(); l++){
+						if(c.DAProbs_[k][it->second].i[l] == it->first){
+							numdet++;
+							expectedWeightChange -= c.DAProbs_[k][it->second].l[l];
+							break;
+
+						}
+					}
+					c.DA_bimap_[k].right.erase(it);
+				}
+			}
+			expectedWeightChange += std::log(1-config.PE_) - std::log(config.PE_) ;
+			expectedWeightChange +=  -std::log(1-config.PD_)*c.landmarks_numFoV_[i]  ;
+
+			//std::cout << "\033[0;31m KILL LANDMARK\033[0m\n" << c.landmarksResetProb_[i]<< " n "<< c.landmarks_numDetections_[i]<< " nfov:" <<c.landmarks_numFoV_[i] << "  expectedChange "<< expectedWeightChange << "\n";
+
+			c.landmarks_numDetections_[i]=0;
+
+		}
+	}
+
+
+	//std::cout << "Death Change  " <<expectedWeightChange <<"\n";
+	return expectedWeightChange;
+
+}
+
 
 inline double VectorGLMBSLAM2D::sampleDA(VectorGLMBComponent2D &c) {
 	boost::uniform_real<> uni_dist(0, 1);
@@ -569,46 +920,64 @@ threadnum = omp_get_thread_num();
 
 	AssociationProbabilities probs;
 	double expectedWeightChange = 0;
+
+	std::fill(c.landmarksResetProb_.begin(),c.landmarksResetProb_.end(),std::log(1-config.PE_)-std::log(config.PE_));
+	std::fill(c.landmarksInitProb_.begin(),c.landmarksInitProb_.end(),0.0);
 	for (int k = 0; k < c.DAProbs_.size(); k++) {
 
 		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
 			probs.i.clear();
 			probs.l.clear();
 			double maxprob = -std::numeric_limits<double>::infinity();
+			int maxprobi =0;
 			auto it = c.DA_bimap_[k].left.find(nz);
 			double selectedProb;
 			int selectedDA = -2;
 			if (it != c.DA_bimap_[k].left.end()) {
 				selectedDA = it->second;
 			}
+			double maxlikelihood = -std::numeric_limits<double>::infinity();
+			int maxlikelihoodi=0;
 			for (int a = 0; a < c.DAProbs_[k][nz].i.size(); a++) {
 				double likelihood =c.DAProbs_[k][nz].l[a];
+
+
+				if(maxlikelihood< likelihood){
+					maxlikelihood= likelihood;
+					maxlikelihoodi = a;
+				}
 				if (c.DAProbs_[k][nz].i[a] == -2) {
 					probs.i.push_back(c.DAProbs_[k][nz].i[a]);
 					probs.l.push_back(c.DAProbs_[k][nz].l[a]);
-					if (c.DAProbs_[k][nz].l[a] > maxprob)
+					if (c.DAProbs_[k][nz].l[a] > maxprob){
 						maxprob = c.DAProbs_[k][nz].l[a];
+						maxprobi = a;
+					}
 				}else if (c.DAProbs_[k][nz].i[a] == selectedDA ) {
 					probs.i.push_back(c.DAProbs_[k][nz].i[a]);
 					if(c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()] == 1){
-						likelihood += std::log(config.PE_)-std::log(1-config.PE_);
+						likelihood += std::log(config.PE_)-std::log(1-config.PE_) + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()])*std::log(1-config.PD_);
 						probs.l.push_back(likelihood);
 					}else{
 						probs.l.push_back(c.DAProbs_[k][nz].l[a]);
 					}
-					if (c.DAProbs_[k][nz].l[a] > maxprob)
-						maxprob = c.DAProbs_[k][nz].l[a];
+					if (c.DAProbs_[k][nz].l[a] > maxprob){
+						maxprob = likelihood;
+						maxprobi = a;
+					}
 				}else  {
 					if (c.DA_bimap_[k].right.count(c.DAProbs_[k][nz].i[a]) == 0) {  // landmark is not already associated to another measurement
 						probs.i.push_back(c.DAProbs_[k][nz].i[a]);
 						if(c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()] == 0){
-							likelihood += std::log(config.PE_)-std::log(1-config.PE_);
+							likelihood += std::log(config.PE_)-std::log(1-config.PE_)   + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()])*std::log(1-config.PD_);
 							probs.l.push_back(likelihood);
 						}else{
 							probs.l.push_back(c.DAProbs_[k][nz].l[a]);
 						}
-						if (c.DAProbs_[k][nz].l[a] > maxprob)
-							maxprob = c.DAProbs_[k][nz].l[a];
+						if (c.DAProbs_[k][nz].l[a] > maxprob){
+							maxprob = likelihood;
+							maxprobi = a;
+						}
 					}
 				}
 				if(c.DAProbs_[k][nz].i[a] == selectedDA ){
@@ -617,11 +986,41 @@ threadnum = omp_get_thread_num();
 				}
 
 			auto P= probs.l;
+			double alternativeprob=0;
 			for (auto &p : P) {
+
 				p = std::exp(p - maxprob);
+				alternativeprob+=p;
 			}
+
 			size_t sample = GibbsSampler::sample(randomGenerators_[threadnum], P);
+
+			//alternativeprob=(alternativeprob -P[sample])/alternativeprob;
+			if(alternativeprob<1){
+				std::cout <<P[maxprobi] << " panicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanicpanic  \n";
+			}
+
 			expectedWeightChange+= probs.l[sample];
+			if(probs.i[sample] >=0){
+				//c.landmarksResetProb_[probs.i[sample] -c.landmarks_[0]->id()] *= (P[ P.size()-1] )/P[sample];
+
+				if(probs.i[sample] != c.DAProbs_[k][nz].i[maxprobi]){
+					c.landmarksResetProb_[probs.i[sample] -c.landmarks_[0]->id()] +=  c.DAProbs_[k][nz].l[maxprobi] - probs.l[sample]; //(1 )/alternativeprob;
+
+				}else{
+					c.landmarksResetProb_[probs.i[sample] -c.landmarks_[0]->id()] += probs.l[probs.l.size()-1] - probs.l[sample] ;
+				}
+
+
+
+			}else{
+
+				if (c.DAProbs_[k][nz].i[maxlikelihoodi]>=0 ){
+					//std::cout << "increasing init prob of lm " <<c.DAProbs_[k][nz].i[maxlikelihoodi] << "  by " <<maxlikelihood  << "- " << probs.l[sample]<< "\n";
+					c.landmarksInitProb_[c.DAProbs_[k][nz].i[maxlikelihoodi] -c.landmarks_[0]->id()] += 1;
+				}
+			}
+
 			if (probs.i[sample] != selectedDA) { // if selected association, change bimap
 
 				if (probs.i[sample] >= 0) {
@@ -643,16 +1042,22 @@ threadnum = omp_get_thread_num();
 		}
 	}
 
+
+
+
 	return expectedWeightChange;
 }
 
 inline void VectorGLMBSLAM2D::updateFoV(VectorGLMBComponent2D &c) {
+	c.landmarks_numFoV_.resize(c.landmarks_.size());
+	std::fill(c.landmarks_numFoV_.begin() , c.landmarks_numFoV_.end() , 0);
     for (int k = 0; k < c.fov_.size(); k++) {
         c.fov_[k].clear();
         if (c.Z_[k].size() > 0) { // if no measurements we set FoV to empty ,
-            for (auto lm : c.landmarks_) {
-                if (distance(c.poses_[k], lm) <= config.maxRange_) {
-                    c.fov_[k].push_back(lm->id());
+            for (int lm = 0; lm<  c.landmarks_.size() ; lm++) {
+                if (distance(c.poses_[k], c.landmarks_[lm]) <= config.maxRange_) {
+                    c.fov_[k].push_back(c.landmarks_[lm]->id());
+                    c.landmarks_numFoV_[lm]++;
                 }
             }
         }
@@ -711,13 +1116,18 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
                     if (!c.poses_[k]->fixed()) {
                         PointType::HessianBlockType::PlainMatrix h;
                         PointType::HessianBlockType pointHessian(h.data());
-                        if(c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()] ==0){
+
+                        if(c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()] >0){
                             new (&pointHessian) PointType::HessianBlockType(c.landmarks_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()]->hessianData());
+
+                            //std::cout << "g2o pointH: " << pointHessian << "\n\n\n";
                         }
                         else{
                             h =  config.anchorInfo_;
+                            //std::cout << "calc pointH: " << pointHessian << "\n\n\n";
 
                         }
+                        //std::cout << "numdetections:  " << c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()]  << "\n";
 
                         MeasurementEdge::JacobianXiOplusType Jpose = c.Z_[k][nz]->jacobianOplusXi();
                         MeasurementEdge::JacobianXjOplusType Jpoint = c.Z_[k][nz]->jacobianOplusXj();
@@ -849,6 +1259,8 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 	//Copy odometry measurements, Copy and save landmark measurements
 
 	c.landmarks_numDetections_.resize(c.landmarks_.size(),0);
+	c.landmarksResetProb_.resize(c.landmarks_.size(),0.0);
+	c.landmarksInitProb_.resize(c.landmarks_.size(),0.0);
 	c.DA_bimap_.resize(c.numPoses_);
 
 	c.Z_.resize(c.numPoses_);
@@ -893,6 +1305,7 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 }
 
 inline void VectorGLMBSLAM2D::init(VectorGLMBComponent2D &c) {
+	temp_= config.initTemp_;
 	auto linearSolver = g2o::make_unique<SlamLinearSolver>();
 	linearSolver->setBlockOrdering(false);
 	c.linearSolver_ = linearSolver.get();
