@@ -66,6 +66,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include "misc/EigenYamlSerialization.hpp"
+#include <misc/termcolor.hpp>
 
 
 #ifdef _PERFTOOLS_CPU
@@ -591,23 +592,24 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 //do{
 		expectedChange += sampleDA(c);
 		expectedChange += sampleLMDeath(c);
-		expectedChange += sampleLMBirth(c);
+		//expectedChange += sampleLMBirth(c);
 
 		for(int i=1; i< config.numGibbs_ ; i++){
 			expectedChange += sampleDA(c);
 			//
 		}
-		expectedChange += sampleLMDeath(c);
-		expectedChange += sampleLMBirth(c);
+		//expectedChange += sampleLMDeath(c);
+		//expectedChange += sampleLMBirth(c);
 		//expectedChange += sampleLMDeath(c);
 		auto pair =std::make_pair( c.DA_bimap_, c.logweight_);
 #pragma omp critical(insert)
 		std::tie(it, inserted) = visited_.insert(pair);
 		if(!inserted){
-			std::cout << "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~data association already inserted\n";
+			std::cout << "data association already inserted\n";
 		}
 //}while(!inserted);
         //printFoV(c);
+		/*  print data association
 		if(i==0){
 		std::ofstream dafile;
 		std::stringstream filename;
@@ -616,13 +618,14 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		std::cout<<" iteraton " <<iteration_++  << " :::: \n";
         printDA(c,dafile);
 		}
+		*/
         //printDAProbs(c);
 		updateGraph(c);
 		c.poses_[0]->setFixed(true);
 		c.optimizer_->initializeOptimization();
 		//c.optimizer_->computeInitialGuess();
 		c.optimizer_->setVerbose(false);
-		std::cout <<"niterations  " <<c.optimizer_->optimize(ni) << "\n";
+		//std::cout <<"niterations  " <<c.optimizer_->optimize(ni) << "\n";
 		calculateWeight(c);
 
 #pragma omp critical(bestweight)
@@ -630,19 +633,23 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		if(c.logweight_> bestWeight_){
 			bestWeight_=c.logweight_;
 			best_DA_ = c.DA_bimap_;
-			std::cout << "===================================================newbest======================================================================================================\n";
+			std::stringstream filename;
+
+			filename << "video/beststate_" << std::setfill('0') <<std::setw(5) << iteration_++ << ".g2o";
+			c.optimizer_->save(filename.str().c_str(),0 );
+			std::cout << termcolor::yellow <<"=================================================== newbest ======================================================================================================\n" << termcolor::reset;
 		}
 		}
 		it->second = c.logweight_;
 		double accept = std::min(1.0 ,  std::exp(c.logweight_-c.prevLogWeight_ - std::min(expectedChange, 0.0) ));
 
-
+		/*
 	boost::uniform_real<> uni_dist(0, 1);
 
 	std::cout << "accept: " << accept << "thred " << threadnum<<"\n";
 	std::cout << "weight: " << c.logweight_ << " prevWeight: " << c.prevLogWeight_ << " expectedChange " << expectedChange << "   chi2:  " <<c.optimizer_->activeChi2() << "  determinant: " << c.linearSolver_->_determinant<< "\n";
 
-/*
+
 	if(uni_dist(rfs::randomGenerators_[threadnum]) > accept){
 		std::cout << "===================================================REVERT========================================================\n";
 		revertDA(c);
@@ -849,7 +856,7 @@ for(int i=0; i< c.landmarks_.size() ; i++){
 		}
 		expectedWeightChange += std::log(config.PE_) -std::log(1-config.PE_)   ;
 
-		std::cout << "\033[0;32m LANDMARK BORN\033[0m initprob: " << c.landmarksInitProb_[i]<< " numDet "<< c.landmarks_numDetections_[i]<< " numfov: " <<c.landmarks_numFoV_[i] << "  expectedChange "<< expectedWeightChange << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+		std::cout << termcolor::green << "LANDMARK BORN " << termcolor::reset <<" initprob: \n" ;// << c.landmarksInitProb_[i]<< " numDet "<< c.landmarks_numDetections_[i]<< " numfov: " <<c.landmarks_numFoV_[i] << "  expectedChange "<< expectedWeightChange << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
 
 		c.landmarks_numDetections_[i]=0;
 
@@ -897,7 +904,7 @@ threadnum = omp_get_thread_num();
 			expectedWeightChange += std::log(1-config.PE_) - std::log(config.PE_) ;
 			expectedWeightChange +=  -std::log(1-config.PD_)*c.landmarks_numFoV_[i]  ;
 
-			//std::cout << "\033[0;31m KILL LANDMARK\033[0m\n" << c.landmarksResetProb_[i]<< " n "<< c.landmarks_numDetections_[i]<< " nfov:" <<c.landmarks_numFoV_[i] << "  expectedChange "<< expectedWeightChange << "\n";
+			std::cout << termcolor::red << "KILL LANDMARK\n"  << termcolor::reset << c.landmarksResetProb_[i]<< " n "<< c.landmarks_numDetections_[i]<< " nfov:" <<c.landmarks_numFoV_[i] << "  expectedChange "<< expectedWeightChange << "\n";
 
 			c.landmarks_numDetections_[i]=0;
 
@@ -957,11 +964,12 @@ threadnum = omp_get_thread_num();
 					probs.i.push_back(c.DAProbs_[k][nz].i[a]);
 					if(c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()] == 1){
 						likelihood += std::log(config.PE_)-std::log(1-config.PE_) + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()])*std::log(1-config.PD_);
+						//std::cout <<" single detection: increase:  " << std::log(config.PE_)-std::log(1-config.PE_) + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()])*std::log(1-config.PD_) <<"\n";
 						probs.l.push_back(likelihood);
 					}else{
 						probs.l.push_back(c.DAProbs_[k][nz].l[a]);
 					}
-					if (c.DAProbs_[k][nz].l[a] > maxprob){
+					if (likelihood > maxprob){
 						maxprob = likelihood;
 						maxprobi = a;
 					}
@@ -970,11 +978,12 @@ threadnum = omp_get_thread_num();
 						probs.i.push_back(c.DAProbs_[k][nz].i[a]);
 						if(c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()] == 0){
 							likelihood += std::log(config.PE_)-std::log(1-config.PE_)   + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()])*std::log(1-config.PD_);
+							//std::cout <<" 0 detection: increase:  " << std::log(config.PE_)-std::log(1-config.PE_) + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()])*std::log(1-config.PD_)<<"\n";
 							probs.l.push_back(likelihood);
 						}else{
 							probs.l.push_back(c.DAProbs_[k][nz].l[a]);
 						}
-						if (c.DAProbs_[k][nz].l[a] > maxprob){
+						if (likelihood > maxprob){
 							maxprob = likelihood;
 							maxprobi = a;
 						}
@@ -987,11 +996,14 @@ threadnum = omp_get_thread_num();
 
 			auto P= probs.l;
 			double alternativeprob=0;
-			for (auto &p : P) {
+			for (int i=0; i<P.size();i++) {
 
-				p = std::exp(p - maxprob);
-				alternativeprob+=p;
+				P[i] = std::exp(P[i] - maxprob);
+
+				//std::cout << p << "   ";
+				alternativeprob+=P[i];
 			}
+
 
 			size_t sample = GibbsSampler::sample(randomGenerators_[threadnum], P);
 
@@ -1003,13 +1015,15 @@ threadnum = omp_get_thread_num();
 			expectedWeightChange+= probs.l[sample];
 			if(probs.i[sample] >=0){
 				//c.landmarksResetProb_[probs.i[sample] -c.landmarks_[0]->id()] *= (P[ P.size()-1] )/P[sample];
-
+/*
 				if(probs.i[sample] != c.DAProbs_[k][nz].i[maxprobi]){
 					c.landmarksResetProb_[probs.i[sample] -c.landmarks_[0]->id()] +=  c.DAProbs_[k][nz].l[maxprobi] - probs.l[sample]; //(1 )/alternativeprob;
 
 				}else{
 					c.landmarksResetProb_[probs.i[sample] -c.landmarks_[0]->id()] += probs.l[probs.l.size()-1] - probs.l[sample] ;
-				}
+				}*/
+
+				c.landmarksResetProb_[probs.i[sample] -c.landmarks_[0]->id()] += std::log( P[sample]/alternativeprob);
 
 
 
@@ -1112,6 +1126,8 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
                     c.Z_[k][nz]->g2o::BaseBinaryEdge<2, g2o::Vector2, g2o::VertexSE2, g2o::VertexPointXY>::linearizeOplus(jac_ws);
                     c.Z_[k][nz]->computeError();
 
+                    Eigen::Matrix<double , MeasurementEdge::Dimension, 1, Eigen::ColMajor> omega_r =  - c.Z_[k][nz]->error();
+
                     // if pose is not fixed, calc updated pose and lm
                     if (!c.poses_[k]->fixed()) {
                         PointType::HessianBlockType::PlainMatrix h;
@@ -1133,21 +1149,27 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
                         MeasurementEdge::JacobianXjOplusType Jpoint = c.Z_[k][nz]->jacobianOplusXj();
 
                         Eigen::Matrix<double, PoseType::Dimension + PointType::Dimension, PoseType::Dimension + PointType::Dimension> H;
+                        Eigen::Matrix<double, PoseType::Dimension + PointType::Dimension, 1> b, sol;
                         H.setZero();
 
-                        H.block(0, 0, PoseType::Dimension, PoseType::Dimension) = poseHessianCopy + Jpose.transpose() * c.Z_[k][nz]->information() * Jpose;
-                        H.block(PoseType::Dimension, PoseType::Dimension, PointType::Dimension, PointType::Dimension) = pointHessian + Jpoint.transpose() * c.Z_[k][nz]->information() * Jpoint;
+                        H.block(0, 0, PoseType::Dimension, PoseType::Dimension) = poseHessianCopy;
+                        H.block(PoseType::Dimension, PoseType::Dimension, PointType::Dimension, PointType::Dimension) = pointHessian ;
+
+
+                        H.block(0, 0, PoseType::Dimension, PoseType::Dimension) += Jpose.transpose() * c.Z_[k][nz]->information() * Jpose  ;
+                        H.block(PoseType::Dimension, PoseType::Dimension, PointType::Dimension, PointType::Dimension) += Jpoint.transpose() * c.Z_[k][nz]->information() * Jpoint;
+
+
 
                         H.block(PoseType::Dimension, 0, PointType::Dimension, PoseType::Dimension) = Jpoint.transpose() * c.Z_[k][nz]->information() * Jpose;
                         H.block(0, PoseType::Dimension, PoseType::Dimension, PointType::Dimension) = H.block(PoseType::Dimension, 0, PointType::Dimension, PoseType::Dimension).transpose() ;
-                        Eigen::Matrix<double, PoseType::Dimension + PointType::Dimension, 1> b, sol;
-                        b.block(0, 0, PoseType::Dimension, 1) = Jpose.transpose() * c.Z_[k][nz]->error();
-                        b.block(PoseType::Dimension, 0, PointType::Dimension, 1) = Jpoint.transpose() * c.Z_[k][nz]->error();
+                        b.block(0, 0, PoseType::Dimension, 1) = Jpose.transpose() *  omega_r;
+                        b.block(PoseType::Dimension, 0, PointType::Dimension, 1) = Jpoint.transpose() * omega_r ;
 
                         Eigen::LLT<Eigen::Matrix<double, PoseType::Dimension + PointType::Dimension, PoseType::Dimension + PointType::Dimension>> lltofH(H);
                         sol = lltofH.solve(b);
 
-                        c.DAProbs_[k][nz].l[a] += -std::log(lltofH.matrixL().determinant());
+                        c.DAProbs_[k][nz].l[a] += std::log(poseHessianCopy.determinant()) + std::log(pointHessian.determinant()) -std::log(lltofH.matrixL().determinant());
                         c.DAProbs_[k][nz].l[a] += std::log(c.Z_[k][nz]->information().determinant()) + posHLogDet;
 
                         c.DAProbs_[k][nz].l[a] += -0.5 * (c.Z_[k][nz]->chi2() - sol.dot(b));
@@ -1161,7 +1183,7 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
                         H.setZero();
                         H = pointHessian + Jpoint.transpose() * c.Z_[k][nz]->information() * Jpoint;
                         Eigen::Matrix<double, PointType::Dimension, 1> b, sol;
-                        b = Jpoint.transpose() * c.Z_[k][nz]->error();
+                        b = Jpoint.transpose() * omega_r;
 
                         Eigen::LLT<Eigen::Matrix<double,  PointType::Dimension,  PointType::Dimension>> lltofH(H);
                         sol = lltofH.solve(b);
@@ -1169,7 +1191,8 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
                         c.DAProbs_[k][nz].l[a] += -std::log(lltofH.matrixL().determinant());
                         c.DAProbs_[k][nz].l[a] += std::log(c.Z_[k][nz]->information().determinant());
 
-                        c.DAProbs_[k][nz].l[a] += -0.5 * (c.Z_[k][nz]->chi2() - sol.dot(b));
+                        //c.DAProbs_[k][nz].l[a] += -0.5 * (c.Z_[k][nz]->chi2() - sol.dot(b));
+                        c.DAProbs_[k][nz].l[a] += -0.5 * (c.Z_[k][nz]->chi2() );
                         c.DAProbs_[k][nz].l[a] += -0.5 * c.Z_[k][nz]->dimension() * std::log(2 * M_PI);
 
                     }

@@ -8,8 +8,8 @@ lmExistenceProb: 0.01
 logKappa: -12.0
 PE: 0.008
 PD: 0.8
-numIterations: 300
-numGibbs: 10
+numIterations: 100
+numGibbs: 30
 numLandmarks: 100
 numComponents: 10
 maxRange: 5
@@ -24,4 +24,4 @@ ylim : [-20.0 , 20.0 ]
 anchorInfo:
     rows: 2
     cols: 2
-    data: [0.01,0,0,0.01]
+    data: [0.1 , 0.0 , 0.0 , 0.1]
