@@ -171,6 +171,8 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 		int numComponents_;
 
+		int birthDeathNumIter_; /**< apply birth and death every n iterations */
+
 		std::vector<double> xlim_, ylim_;
 
 		int numLandmarks_; /**< number of landmarks per dimension total landmarks will be numlandmarks^2 */
@@ -337,6 +339,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	double temp_;
 
 	int iteration_=0;
+	int iterationBest_=0;
 
 };
 
@@ -509,6 +512,7 @@ void VectorGLMBSLAM2D::loadConfig(std::string filename) {
 	config.PD_ = node["PD"].as<double>();
 	config.maxRange_ = node["maxRange"].as<double>();
 	config.numComponents_ = node["numComponents"].as<int>();
+	config.birthDeathNumIter_ = node["birthDeathNumIter"].as<int>();
 	config.numLandmarks_ = node["numLandmarks"].as<int>();
 	config.numGibbs_ = node["numGibbs"].as<int>();
     config.numIterations_ = node["numIterations"].as<int>();
@@ -591,8 +595,10 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		std::map<std::vector<boost::bimap<int, int>> , double>::iterator it;
 //do{
 		expectedChange += sampleDA(c);
-		expectedChange += sampleLMDeath(c);
-		//expectedChange += sampleLMBirth(c);
+		if (iteration_ % config.birthDeathNumIter_ == 0) {
+			expectedChange += sampleLMBirth(c);
+			expectedChange += sampleLMDeath(c);
+		}
 
 		for(int i=1; i< config.numGibbs_ ; i++){
 			expectedChange += sampleDA(c);
@@ -623,9 +629,9 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		updateGraph(c);
 		c.poses_[0]->setFixed(true);
 		c.optimizer_->initializeOptimization();
-		//c.optimizer_->computeInitialGuess();
+		c.optimizer_->computeInitialGuess();
 		c.optimizer_->setVerbose(false);
-		//std::cout <<"niterations  " <<c.optimizer_->optimize(ni) << "\n";
+		std::cout <<"niterations  " <<c.optimizer_->optimize(ni) << "\n";
 		calculateWeight(c);
 
 #pragma omp critical(bestweight)
@@ -635,9 +641,9 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 			best_DA_ = c.DA_bimap_;
 			std::stringstream filename;
 
-			filename << "video/beststate_" << std::setfill('0') <<std::setw(5) << iteration_++ << ".g2o";
+			filename << "video/beststate_" << std::setfill('0') <<std::setw(5) << iterationBest_++ << ".g2o";
 			c.optimizer_->save(filename.str().c_str(),0 );
-			std::cout << termcolor::yellow <<"=================================================== newbest ======================================================================================================\n" << termcolor::reset;
+			std::cout << termcolor::yellow <<"========== newbest ============\n" << termcolor::reset;
 		}
 		}
 		it->second = c.logweight_;
@@ -663,7 +669,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 	}
 
 
-
+	iteration_++;
 
 	temp_*=config.tempFactor_;
 }
@@ -856,7 +862,7 @@ for(int i=0; i< c.landmarks_.size() ; i++){
 		}
 		expectedWeightChange += std::log(config.PE_) -std::log(1-config.PE_)   ;
 
-		std::cout << termcolor::green << "LANDMARK BORN " << termcolor::reset <<" initprob: \n" ;// << c.landmarksInitProb_[i]<< " numDet "<< c.landmarks_numDetections_[i]<< " numfov: " <<c.landmarks_numFoV_[i] << "  expectedChange "<< expectedWeightChange << "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n";
+		std::cout << termcolor::green << "LANDMARK BORN " << termcolor::reset <<" initprob: " << c.landmarksInitProb_[i]<< " numDet "<< c.landmarks_numDetections_[i]<< " numfov: " <<c.landmarks_numFoV_[i] << "  expectedChange "<< expectedWeightChange << "\n";
 
 		c.landmarks_numDetections_[i]=0;
 

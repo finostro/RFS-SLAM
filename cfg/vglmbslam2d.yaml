@@ -5,17 +5,18 @@ lmExistenceProb: 0.01
 
 
 
-logKappa: -12.0
+logKappa: -17.0
 PE: 0.008
 PD: 0.8
-numIterations: 100
-numGibbs: 30
+numIterations: 500
+numGibbs: 20
 numLandmarks: 100
-numComponents: 10
+numComponents: 12
 maxRange: 5
 numLevenbergIterations: 50
 tempFactor: 0.999
 initTemp: 100
+birthDeathNumIter: 5
 
 finalStateFile: optimizedState.g2o
 xlim : [-20.0 , 20.0 ]
