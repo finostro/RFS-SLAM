@@ -8,7 +8,7 @@ lmExistenceProb: 0.01
 logKappa: -17.0
 PE: 0.008
 PD: 0.8
-numIterations: 500
+numIterations: 2000
 numGibbs: 20
 numLandmarks: 100
 numComponents: 12
