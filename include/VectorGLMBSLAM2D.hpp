@@ -61,6 +61,7 @@
 #include "g2o/types/slam2d/edge_se2.h"
 #include "g2o/types/slam2d/edge_xy_prior.h"
 #include <boost/random/uniform_real.hpp>
+#include <boost/random/uniform_int.hpp>
 
 #include <boost/bimap.hpp>
 #include <yaml-cpp/yaml.h>
@@ -131,6 +132,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	,prevLogWeight_ = -std::numeric_limits<double>::infinity();
 	int numPoses_, numPoints_;
 	bool reverted_ = false;
+	std::vector<std::pair<int,int>> tomerge_; /**< proportional to probability of merge heuristic*/
 };
 
 /**
@@ -151,10 +153,10 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1> > SlamBlockSolver;
 	typedef g2o::LinearSolverCSparse<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
 	/**
-	 * \brief Configurations for this RFSBatchPSO optimizer
+	 * \brief Configurations for this  optimizer
 	 */
 	struct Config {
-	public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
 		/** The threshold used to determine if a possible meaurement-landmark
 		 *  pairing is significant to worth considering
 		 */
@@ -179,6 +181,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
         int numGibbs_; /**< number of gibbs samples of the data association */
         int numLevenbergIterations_; /**< number of gibbs samples of the data association */
+        int crossoverNumIter_;
 
 		int lmExistenceProb_;
 		int numIterations_; /**< number of iterations of main algorithm */
@@ -270,10 +273,23 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	double sampleDA(VectorGLMBComponent2D &c);
 
 	/**
+	 * Merge two data associations into a third one, by selecting a random merge time.
+	 */
+	void  sexyTime(VectorGLMBComponent2D &c1, VectorGLMBComponent2D &c2);
+
+
+	/**
 	 * Use the probabilities calculated in sampleDA to reset all the detections of a single landmark to all false alarms.
 	 * @param c the GLMB component
 	 */
 	double sampleLMDeath(VectorGLMBComponent2D &c);
+
+
+	/**
+	 * Randomly merge landmarks in order to improve the sampling algorithm
+	 * @param c the GLMB component
+	 */
+	double mergeLM(VectorGLMBComponent2D &c);
 
 
 	/**
@@ -335,8 +351,10 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	std::vector<VectorGLMBComponent2D> components_; /**< VGLMB components */
 	double bestWeight_=-std::numeric_limits<double>::infinity();
 	std::vector<boost::bimap<int, int>> best_DA_;
+
 	std::map<std::vector<boost::bimap<int, int>>, double > visited_;
 	double temp_;
+	int maxpose_; /**< optimize only up to this pose */
 
 	int iteration_=0;
 	int iterationBest_=0;
@@ -358,6 +376,7 @@ VectorGLMBSLAM2D::VectorGLMBSLAM2D() {
 VectorGLMBSLAM2D::~VectorGLMBSLAM2D() {
 
 }
+
 void VectorGLMBSLAM2D::changeDA(VectorGLMBComponent2D &c,
 		const std::vector<boost::bimap<int, int> > &da) {
 	// update bimaps!!!
@@ -524,6 +543,7 @@ void VectorGLMBSLAM2D::loadConfig(std::string filename) {
 	config.initTemp_ = node["initTemp"].as<double>();
 	config.tempFactor_ = node["tempFactor"].as<double>();
 
+	config.crossoverNumIter_ = node["crossoverNumIter"].as<int>();
 	config.finalStateFile_ =  node["finalStateFile"].as<std::string>();
 
 
@@ -564,8 +584,40 @@ inline void VectorGLMBSLAM2D::initComponents() {
 }
 inline void VectorGLMBSLAM2D::run(int numSteps) {
     for( int i =0; i < numSteps; i++){
+    	maxpose_=components_[0].poses_.size()*i/(numSteps-500);
+    	if (maxpose_>components_[0].poses_.size()) maxpose_=components_[0].poses_.size();
+    	std::cout << "maxpose: " << maxpose_ << "\n";
         optimize(config.numLevenbergIterations_);
+
     }
+
+}
+
+
+void  VectorGLMBSLAM2D::sexyTime(VectorGLMBComponent2D &c1, VectorGLMBComponent2D &c2){
+
+	int threadnum = 0;
+#ifdef _OPENMP
+threadnum = omp_get_thread_num();
+#endif
+	boost::uniform_int<> random_merge_point(-maxpose_,maxpose_);
+	std::vector<boost::bimap<int, int> > out;
+	out.resize(c1.DA_bimap_.size());
+	int merge_point =random_merge_point(rfs::randomGenerators_[threadnum]);
+
+	if(merge_point >= 0){
+		// first half from da1 second from da2
+		for(int i = merge_point; i < c2.DA_bimap_.size(); i++){
+			c1.DA_bimap_[i] = c2.DA_bimap_[i];
+
+		}
+	}else{
+		// first half from da2 second from da1
+		for (int i=0 ; i<-merge_point ;i++){
+			c1.DA_bimap_[i] = c2.DA_bimap_[i];
+		}
+
+	}
 }
 inline void VectorGLMBSLAM2D::optimize(int ni) {
 
@@ -574,6 +626,24 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		std::cout << "sampling compos \n";
 	}
 
+	if (iteration_ % config.crossoverNumIter_  == 0){
+		for (int i=0; i< components_.size(); i++){
+			auto &c = components_[i];
+
+				std::cout << termcolor::magenta <<" =========== SexyTime!============\n" << termcolor::reset;
+				boost::uniform_int<> random_component(0, components_.size()-1);
+				int secondComp;
+				do{
+					secondComp=random_component(rfs::randomGenerators_[0]);
+				}while(secondComp==i);
+				sexyTime(c,components_[secondComp]);
+		}
+#pragma omp parallel for
+	for (int i=0; i< components_.size(); i++) {
+
+	}
+
+			}
 #pragma omp parallel for
 	for (int i=0; i< components_.size(); i++) {
 		auto &c = components_[i];
@@ -586,24 +656,50 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 
 
 		updateFoV(c);
-		if(!c.reverted_)
+		if(!c.reverted_ && !iteration_ % config.crossoverNumIter_  == 0)
 			updateDAProbs(c);
 		c.prevDA_bimap_ = c.DA_bimap_;
 		c.prevlandmarks_numDetections_ = c.landmarks_numDetections_;
 		double expectedChange=0;
 		bool inserted;
 		std::map<std::vector<boost::bimap<int, int>> , double>::iterator it;
+
+		if (iteration_ % config.crossoverNumIter_  != 0){
 //do{
 		expectedChange += sampleDA(c);
+			/*
+			std::cout << termcolor::magenta <<" =========== SexyTime!============\n" << termcolor::reset;
+			boost::uniform_int<> random_component(0, components_.size()-1);
+			int secondComp;
+			do{
+				secondComp=random_component(rfs::randomGenerators_[threadnum]);
+			}while(secondComp==i);
+			sexyTime(c,components_[secondComp]);
+			*/
+
 		if (iteration_ % config.birthDeathNumIter_ == 0) {
-			expectedChange += sampleLMBirth(c);
-			expectedChange += sampleLMDeath(c);
+			switch ((iteration_ / config.birthDeathNumIter_)%3){
+			case 0:
+				expectedChange += sampleLMBirth(c);
+				break;
+			case 1:
+				expectedChange += sampleLMDeath(c);
+				break;
+
+			case 2:
+				expectedChange += mergeLM(c);
+				break;
+
+
+			}
+
 		}
 
 		for(int i=1; i< config.numGibbs_ ; i++){
 			expectedChange += sampleDA(c);
 			//
 		}
+
 		//expectedChange += sampleLMDeath(c);
 		//expectedChange += sampleLMBirth(c);
 		//expectedChange += sampleLMDeath(c);
@@ -611,7 +707,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 #pragma omp critical(insert)
 		std::tie(it, inserted) = visited_.insert(pair);
 		if(!inserted){
-			std::cout << "data association already inserted\n";
+			//std::cout << "data association already inserted\n";
 		}
 //}while(!inserted);
         //printFoV(c);
@@ -626,12 +722,14 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		}
 		*/
         //printDAProbs(c);
+	}
 		updateGraph(c);
 		c.poses_[0]->setFixed(true);
 		c.optimizer_->initializeOptimization();
 		c.optimizer_->computeInitialGuess();
 		c.optimizer_->setVerbose(false);
-		std::cout <<"niterations  " <<c.optimizer_->optimize(ni) << "\n";
+		c.optimizer_->optimize(ni);
+		//std::cout <<"niterations  " <<c.optimizer_->optimize(ni) << "\n";
 		calculateWeight(c);
 
 #pragma omp critical(bestweight)
@@ -643,11 +741,11 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 
 			filename << "video/beststate_" << std::setfill('0') <<std::setw(5) << iterationBest_++ << ".g2o";
 			c.optimizer_->save(filename.str().c_str(),0 );
-			std::cout << termcolor::yellow <<"========== newbest ============\n" << termcolor::reset;
+			std::cout << termcolor::yellow <<"========== newbest:" << bestWeight_<<" ============\n" << termcolor::reset;
 		}
 		}
 		it->second = c.logweight_;
-		double accept = std::min(1.0 ,  std::exp(c.logweight_-c.prevLogWeight_ - std::min(expectedChange, 0.0) ));
+		//double accept = std::min(1.0 ,  std::exp(c.logweight_-c.prevLogWeight_ - std::min(expectedChange, 0.0) ));
 
 		/*
 	boost::uniform_real<> uni_dist(0, 1);
@@ -715,6 +813,7 @@ inline void VectorGLMBSLAM2D::calculateWeight(VectorGLMBComponent2D &c) {
 		}
 	}
 	logw+= -0.5*(c.optimizer_->activeChi2() + c.linearSolver_->_determinant);
+	//std::cout << termcolor::blue << "weight: " <<logw << " det: " <<     c.linearSolver_->_determinant      <<termcolor::reset <<"\n";
 	c.prevLogWeight_ = c.logweight_;
 	c.logweight_ = logw;
 }
@@ -722,7 +821,7 @@ inline void VectorGLMBSLAM2D::calculateWeight(VectorGLMBComponent2D &c) {
 
 
 inline void VectorGLMBSLAM2D::updateGraph(VectorGLMBComponent2D &c) {
-	for (int k = 0; k < c.poses_.size(); k++) {
+	for (int k = 0; k < maxpose_; k++) {
 		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
 		    int selectedDA = -2;
 			auto it = c.DA_bimap_[k].left.find(nz);
@@ -837,7 +936,7 @@ for(int i=0; i< c.landmarks_.size() ; i++){
 		// reset all associations to false alarms
 		expectedWeightChange += (config.logKappa_+(1-config.PD_))*c.landmarks_numFoV_[i];
 		int numdet=0;
-		for (int k  = 0; k< c.poses_.size() ; k++ ){
+		for (int k  = 0; k< maxpose_ ; k++ ){
 			for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
 				// if measurement is associated, continue
 				auto it = c.DA_bimap_[k].left.find(nz);
@@ -874,6 +973,49 @@ for(int i=0; i< c.landmarks_.size() ; i++){
 return expectedWeightChange;
 }
 
+inline double VectorGLMBSLAM2D::mergeLM(VectorGLMBComponent2D &c) {
+	double expectedWeightChange = 0;
+	int threadnum = 0;
+#ifdef _OPENMP
+threadnum = omp_get_thread_num();
+#endif
+
+	if (c.tomerge_.size() == 0) {
+		std::cout << termcolor::blue << "no jumps so no merge \n" << termcolor::reset;
+		return 0;
+	}
+	boost::uniform_int<> random_pair(0,c.tomerge_.size()-1);
+
+	int rp =random_pair(rfs::randomGenerators_[threadnum]);
+
+	int todelete= c.tomerge_[rp].first;
+	int toAddMeasurements= c.tomerge_[rp].second;
+
+	for (int k  = 0; k< maxpose_ ; k++ ){
+		auto it = c.DA_bimap_[k].right.find(todelete);
+		if (it != c.DA_bimap_[k].right.end()) {
+			for(int l =0; l < c.DAProbs_[k][it->second].i.size(); l++){
+				if(c.DAProbs_[k][it->second].i[l] == it->first){
+
+					expectedWeightChange -= c.DAProbs_[k][it->second].l[l];
+					break;
+
+				}
+			}
+			c.landmarks_numDetections_[todelete-c.landmarks_[0]->id()]--;
+			c.landmarks_numDetections_[toAddMeasurements-c.landmarks_[0]->id()]++;
+
+			c.DA_bimap_[k].right.replace_key(it, toAddMeasurements);
+
+		}
+	}
+	if (c.landmarks_numDetections_[todelete-c.landmarks_[0]->id()] != 0){
+		std::cerr << "landmarks_numDetections_ not zero"<< c.landmarks_numDetections_[todelete-c.landmarks_[0]->id()] << "\n";
+	}
+	c.tomerge_.clear();
+	return expectedWeightChange;
+}
+
 inline double VectorGLMBSLAM2D::sampleLMDeath(VectorGLMBComponent2D &c) {
 	double expectedWeightChange=0;
 	boost::uniform_real<> uni_dist(0, 1);
@@ -893,7 +1035,7 @@ threadnum = omp_get_thread_num();
 			// reset all associations to false alarms
 			expectedWeightChange += config.logKappa_*c.landmarks_numDetections_[i];
 			int numdet=0;
-			for (int k  = 0; k< c.poses_.size() ; k++ ){
+			for (int k  = 0; k< maxpose_ ; k++ ){
 				auto it = c.DA_bimap_[k].right.find(c.landmarks_[i]->id());
 				if (it != c.DA_bimap_[k].right.end()) {
 					for(int l =0; l < c.DAProbs_[k][it->second].i.size(); l++){
@@ -936,7 +1078,7 @@ threadnum = omp_get_thread_num();
 
 	std::fill(c.landmarksResetProb_.begin(),c.landmarksResetProb_.end(),std::log(1-config.PE_)-std::log(config.PE_));
 	std::fill(c.landmarksInitProb_.begin(),c.landmarksInitProb_.end(),0.0);
-	for (int k = 0; k < c.DAProbs_.size(); k++) {
+	for (int k = 0; k < maxpose_; k++) {
 
 		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
 			probs.i.clear();
@@ -1048,8 +1190,12 @@ threadnum = omp_get_thread_num();
 					if (selectedDA < 0) {
 						c.DA_bimap_[k].insert( { nz, probs.i[sample] });
 					} else {
+
 						c.landmarks_numDetections_[selectedDA-c.landmarks_[0]->id()]--;
 						c.DA_bimap_[k].left.replace_data(it, probs.i[sample]);
+
+						// add an log for possible landmark merge
+						c.tomerge_.push_back(std::make_pair(probs.i[sample] ,selectedDA));
 					}
 				} else { // if a change has to be made and new DA is false alarm, we need to remove the association
 					c.DA_bimap_[k].left.erase(it);
@@ -1071,7 +1217,7 @@ threadnum = omp_get_thread_num();
 inline void VectorGLMBSLAM2D::updateFoV(VectorGLMBComponent2D &c) {
 	c.landmarks_numFoV_.resize(c.landmarks_.size());
 	std::fill(c.landmarks_numFoV_.begin() , c.landmarks_numFoV_.end() , 0);
-    for (int k = 0; k < c.fov_.size(); k++) {
+    for (int k = 0; k < maxpose_; k++) {
         c.fov_[k].clear();
         if (c.Z_[k].size() > 0) { // if no measurements we set FoV to empty ,
             for (int lm = 0; lm<  c.landmarks_.size() ; lm++) {
@@ -1091,7 +1237,7 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
     jac_ws.updateSize(2,2*3);
     jac_ws.allocate();
 
-	for (int k = 0; k < c.DAProbs_.size(); k++) {
+	for (int k = 0; k < maxpose_; k++) {
 	    c.DAProbs_[k].resize(c.Z_[k].size());
 
 		double posHLogDet ;

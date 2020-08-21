@@ -21,15 +21,13 @@ message(STATUS "RFSSLAM Version ${RFSSLAM_VERSION}")
 
 
 
+# choose latest opengl
+set(OpenGL_GL_PREFERENCE GLVND)
 # Compiler settings
 # Note: to change compiler, use for example...
 # cmake -D CMAKE_C_COMPILER=gcc CMAKE_CXX_COMPILER=c++ .
 #SET(CMAKE_C_COMPILER "gcc")
 #SET(CMAKE_CXX_COMPILER "g++")
-SET(MARCH_NATIVE ON CACHE BOOL "Use -march=native to further optimize performance (sse4 etc.).")
-IF(USE_OPENMP)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native ")
-ENDIF()
 
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")

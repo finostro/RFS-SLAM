@@ -5,7 +5,7 @@ lmExistenceProb: 0.01
 
 
 
-logKappa: -17.0
+logKappa: -8.0
 PE: 0.008
 PD: 0.8
 numIterations: 2000
@@ -17,6 +17,7 @@ numLevenbergIterations: 50
 tempFactor: 0.999
 initTemp: 100
 birthDeathNumIter: 5
+crossoverNumIter: 7 
 
 finalStateFile: optimizedState.g2o
 xlim : [-20.0 , 20.0 ]
@@ -25,4 +26,4 @@ ylim : [-20.0 , 20.0 ]
 anchorInfo:
     rows: 2
     cols: 2
-    data: [0.1 , 0.0 , 0.0 , 0.1]
+    data: [10.0 , 0.0 , 0.0 , 10.0]
