@@ -1,0 +1,29 @@
+
+MeasurementLikelihoodThreshold:  100.0
+
+lmExistenceProb: 0.01
+
+
+
+logKappa: -3000.0
+PE: 0.00008
+PD: 0.8
+numIterations: 5000
+numGibbs: 10
+numLandmarks: 100
+numComponents: 12
+maxRange: 7
+numLevenbergIterations: 50
+tempFactor: 0.995
+initTemp: 1000
+birthDeathNumIter: 5
+crossoverNumIter: 13 
+
+finalStateFile: optimizedState.g2o
+xlim : [-20.0 , 20.0 ]
+ylim : [-20.0 , 20.0 ]
+
+anchorInfo:
+    rows: 2
+    cols: 2
+    data: [0.10 , 0.0 , 0.0 , 0.10]
