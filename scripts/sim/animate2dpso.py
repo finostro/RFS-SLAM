@@ -55,7 +55,7 @@ saveFig = True
 
 nTrDrawMax = 500
 if len(sys.argv) < 2:
-    print "Usage: animate1dSim DATA_DIR\n";
+    print("Usage: animate1dSim DATA_DIR\n");
     sys.exit(0);
 
 # Setting for file names

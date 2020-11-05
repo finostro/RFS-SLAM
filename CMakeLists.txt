@@ -89,7 +89,33 @@ FIND_PACKAGE(g2o REQUIRED)
 FIND_PACKAGE(CSparse REQUIRED)
 FIND_PACKAGE(yaml-cpp REQUIRED)
 
-# Google perftools
+
+
+# sanitizer
+
+if (USE_SANITIZER STREQUAL "Address")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address  -fno-omit-frame-pointer")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address  -fno-omit-frame-pointer")
+    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=address  -fno-omit-frame-pointer")
+elseif (USE_SANITIZER STREQUAL "Thread")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=thread")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
+    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=thread")
+elseif (USE_SANITIZER STREQUAL "Undefined")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=undefined")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined")
+    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=undefined")
+elseif (USE_SANITIZER STREQUAL "Leak")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=leak")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=leak")
+    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=leak")
+elseif (USE_SANITIZER STREQUAL "Memory")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=memory  -fno-omit-frame-pointer -fsanitize-memory-track-origins")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=memory  -fno-omit-frame-pointer -fsanitize-memory-track-origins")
+    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=memory  -fno-omit-frame-pointer -fsanitize-memory-track-origins")
+else()
+    SET(USE_SANITIZER "disabled" CACHE STRING "set sanitizer type.")
+    # Google perftools
 FIND_PACKAGE(Perftools)
 IF(Perftools_FOUND)
   IF("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
@@ -112,31 +138,6 @@ IF(Perftools_FOUND)
     ENDIF()
   ENDIF()
 ENDIF()
-
-# sanitizer
-
-if (USE_SANITIZER STREQUAL "Address")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address  -fno-omit-frame-pointer")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address  -fno-omit-frame-pointer")
-    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=address  -fno-omit-frame-pointer")
-elseif (USE_SANITIZER STREQUAL "Thread")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=thread")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
-    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=thread")
-elseif (USE_SANITIZER STREQUAL "Undefined")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=undefined")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined")
-    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=undefined")
-elseif (USE_SANITIZER STREQUAL "Leak")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=leak")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=leak")
-    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=leak")
-elseif (USE_SANITIZER STREQUAL "Memory")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=memory")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=memory")
-    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=memory")
-else()
-    SET(USE_SANITIZER "disabled" CACHE STRING "set sanitizer type.")
 endif()
 # VTK visualization
 find_package(VTK REQUIRED)
@@ -241,6 +242,12 @@ TARGET_LINK_LIBRARIES(rfsceresslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRA
 ADD_EXECUTABLE(vglmbslam2d src/vglmbslam2d.cpp)
 TARGET_LINK_LIBRARIES(vglmbslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} )
 
+ADD_EXECUTABLE(nng2oslam2d src/nng2osolver.cpp)
+TARGET_LINK_LIBRARIES(nng2oslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} )
+
+ADD_EXECUTABLE(mlag2oslam2d src/mlag2osolver.cpp)
+TARGET_LINK_LIBRARIES(mlag2oslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} )
+
 ADD_EXECUTABLE(rfsceresslam2dSim src/rfsceresslam2dSim.cpp)
 TARGET_LINK_LIBRARIES(rfsceresslam2dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
@@ -296,6 +303,9 @@ TARGET_LINK_LIBRARIES(ospaError ${Boost_LIBRARIES} rfsslam)
 
 ADD_EXECUTABLE(ospaErrorFromFile src/examples/ospaErrorFromFile.cpp)
 TARGET_LINK_LIBRARIES(ospaErrorFromFile ${Boost_LIBRARIES} rfsslam)
+
+ADD_EXECUTABLE(ospaErrorFromg2oFile src/examples/ospaErrorFromg2oFile.cpp)
+TARGET_LINK_LIBRARIES(ospaErrorFromg2oFile ${Boost_LIBRARIES} rfsslam)
 
 ADD_EXECUTABLE(cpu_timer_test src/tests/cpu_timer_info.cpp)
 TARGET_LINK_LIBRARIES(cpu_timer_test ${Boost_LIBRARIES})

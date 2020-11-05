@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
  #
  # Software License Agreement (New BSD License)
@@ -56,7 +56,7 @@ nLandmarksDrawMax = 500;
 nMeasurementsDrawMax = 500;
 
 if len(sys.argv) < 2:
-    print "Usage: animate2dSim DATA_DIR\n";
+    print("Usage: animate2dSim DATA_DIR\n")
     sys.exit(0);
 
 # Setting for file names
