@@ -231,7 +231,7 @@ ADD_EXECUTABLE(rfspsoslam1dSim src/rfspsoslam1dSim.cpp)
 TARGET_LINK_LIBRARIES(rfspsoslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(rfshmcslam1dSim src/rfshmcslam1dSim.cpp)
-TARGET_LINK_LIBRARIES(rfshmcslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES})# ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rfshmcslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(rfspsoslam2dSim src/rfspsoslam2dSim.cpp)
 TARGET_LINK_LIBRARIES(rfspsoslam2dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
@@ -279,9 +279,9 @@ IF(GTEST_FOUND)
   TARGET_LINK_LIBRARIES(spatialIndexTreeTest ${GTEST_LIBRARIES} ${Boost_LIBRARIES} rfsslam pthread)
   ADD_TEST(unitTest spatialIndexTreeTest)
 
-  ADD_EXECUTABLE(matrixPermanentTest test/MatrixPermanentTest.cpp)
-  TARGET_LINK_LIBRARIES(matrixPermanentTest ${GTEST_LIBRARIES} rfsslam pthread)
-  ADD_TEST(unitTest matrixPermanentTest)
+  #ADD_EXECUTABLE(matrixPermanentTest test/MatrixPermanentTest.cpp)
+  #TARGET_LINK_LIBRARIES(matrixPermanentTest ${GTEST_LIBRARIES} rfsslam pthread)
+  #ADD_TEST(unitTest matrixPermanentTest)
 
 ENDIF()
 
@@ -325,7 +325,7 @@ set_target_properties(linearAssignment_CostMatrixPartitioning
 IF(GTEST_FOUND)
   set_target_properties(cpu_timer_test jcbb_test
     spatialIndexTreeTest
-    matrixPermanentTest
+    #matrixPermanentTest
     PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/test"
     )

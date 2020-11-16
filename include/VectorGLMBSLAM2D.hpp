@@ -567,7 +567,7 @@ inline void VectorGLMBSLAM2D::initComponents() {
 }
 inline void VectorGLMBSLAM2D::run(int numSteps) {
 	for (int i = 0; i < numSteps; i++) {
-		maxpose_ = components_[0].poses_.size() * i / (numSteps - 2000);
+		maxpose_ = components_[0].poses_.size() * i / (numSteps*0.8);
 		if (maxpose_ > components_[0].poses_.size())
 			maxpose_ = components_[0].poses_.size();
 		std::cout << "maxpose: " << maxpose_ << "\n";

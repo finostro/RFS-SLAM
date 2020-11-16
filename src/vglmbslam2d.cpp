@@ -33,7 +33,22 @@ int main(int argc, char* argv[]){
 
   vglmb.initComponents();
 
+#ifdef _PERFTOOLS_CPU
+		std::string perfCPU_file =  "vglmb.prof";
+		ProfilerStart(perfCPU_file.data());
+#endif
+#ifdef _PERFTOOLS_HEAP
+		std::string perfHEAP_file = "vglmb_heap.prof";
+		HeapProfilerStart(perfHEAP_file.data());
+#endif
   vglmb.run(vglmb.config.numIterations_);
+  #ifdef _PERFTOOLS_HEAP
+		HeapProfilerStop();
+#endif
+#ifdef _PERFTOOLS_CPU
+		ProfilerStop();
+#endif
+
   vglmb.components_[0].optimizer_->save(vglmb.config.finalStateFile_.c_str() , 0);
   vglmb.components_[0].DA_bimap_ = vglmb.best_DA_;
   vglmb.updateGraph(vglmb.components_[0]);
