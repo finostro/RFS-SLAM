@@ -29,6 +29,13 @@ set(OpenGL_GL_PREFERENCE GLVND)
 #SET(CMAKE_C_COMPILER "gcc")
 #SET(CMAKE_CXX_COMPILER "g++")
 
+include(CheckCXXCompilerFlag)
+CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
+if(COMPILER_SUPPORTS_MARCH_NATIVE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+endif()
+
+
 
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
    add_compile_options (-fdiagnostics-color=always)
@@ -47,6 +54,7 @@ IF(APPLE)
   ENDIF()
 ENDIF()
 
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native ")
 # OpenMP
 IF(APPLE AND ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang"))
   SET(USE_OPENMP OFF) # OpenMP does not yet work with Clang, but hopefully soon

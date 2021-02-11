@@ -407,12 +407,12 @@ void VectorGLMBSLAM2D::sampleComponents() {
 			maxw = it->second;
 		probs[i] = probs[i - 1] + std::exp((it->second - maxw) / temp_);
 	}
-
-	/* std:: cout << "maxw " << maxw <<  "  temp " << temp_ << "\n";
+/*
+	 std:: cout << "maxw " << maxw <<  "  temp " << temp_ << "\n";
 	 std::cout << "probs " ;
 	 for (auto p:probs){std::cout <<"  " << p;}
-	 std::cout <<"\n";
-	 */
+	 std::cout <<"\n";*/
+	 
 	boost::uniform_real<> dist(0.0,
 			probs[probs.size() - 1] / components_.size());
 
@@ -570,7 +570,9 @@ inline void VectorGLMBSLAM2D::run(int numSteps) {
 		maxpose_ = components_[0].poses_.size() * i / (numSteps*0.8);
 		if (maxpose_ > components_[0].poses_.size())
 			maxpose_ = components_[0].poses_.size();
+			
 		std::cout << "maxpose: " << maxpose_ << "\n";
+		std::cout << "iteration: " << iteration_ << " / " << numSteps<< "\n";
 		optimize(config.numLevenbergIterations_);
 
 	}
@@ -613,6 +615,7 @@ threadnum = omp_get_thread_num();
 }
 inline void VectorGLMBSLAM2D::optimize(int ni) {
 
+		std::cout << "visited  " << visited_.size() << "\n" ;
 	if (visited_.size() > 0) {
 		sampleComponents();
 		std::cout << "sampling compos \n";
@@ -775,11 +778,13 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 	//temp_ *= config.tempFactor_;
 
 std::cout << "insertionp: " << insertionP_ << " temp: " << temp_ << "\n";
-	if (insertionP_>0.8){
+	if (insertionP_> 0.8 && temp_ > 1e-10){
 		temp_*=0.2;
+		std::cout << "reducing: \n";
 	}
-	if (insertionP_ < 0.2){
+	if (insertionP_ < 0.2 && temp_ < 1e10){
 		temp_*=5;
+		std::cout << "augmenting: ";
 	}
 }
 inline void VectorGLMBSLAM2D::calculateWeight(VectorGLMBComponent2D &c) {
@@ -982,13 +987,14 @@ threadnum = omp_get_thread_num();
 			}
 			expectedWeightChange += std::log(config.PE_)
 					- std::log(1 - config.PE_);
-
+/*
 			std::cout << termcolor::green << "LANDMARK BORN "
 					<< termcolor::reset << " initprob: "
 					<< c.landmarksInitProb_[i] << " numDet "
 					<< c.landmarks_numDetections_[i] << " numfov: "
 					<< c.landmarks_numFoV_[i] << "  expectedChange "
 					<< expectedWeightChange << "\n";
+					*/
 
 			c.landmarks_numDetections_[i] = 0;
 
@@ -1089,12 +1095,13 @@ threadnum = omp_get_thread_num();
 					- std::log(config.PE_);
 			expectedWeightChange += -std::log(1 - config.PD_)
 					* c.landmarks_numFoV_[i];
-
+/*
 			std::cout << termcolor::red << "KILL LANDMARK\n" << termcolor::reset
 					<< c.landmarksResetProb_[i] << " n "
 					<< c.landmarks_numDetections_[i] << " nfov:"
 					<< c.landmarks_numFoV_[i] << "  expectedChange "
 					<< expectedWeightChange << "\n";
+					*/
 
 			c.landmarks_numDetections_[i] = 0;
 

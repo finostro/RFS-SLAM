@@ -33,13 +33,7 @@ int main(int argc, char* argv[]){
 
   solver.initComponents();
 
-  solver.run(solver.config.numIterations_);
-  solver.components_[0].optimizer_->save(solver.config.finalStateFile_.c_str() , 0);
-  solver.components_[0].DA_bimap_ = solver.best_DA_;
-  solver.updateGraph(solver.components_[0]);
-  solver.components_[0].optimizer_->initializeOptimization();
-  solver.components_[0].optimizer_->optimize(50);
-  solver.components_[0].optimizer_->save("beststate.g2o" , 0);
+
 
 
 }
