@@ -226,8 +226,15 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 * Do n iterations
 	 * @param ni number of iterations of the optimizer
 	 */
+
+
 	void optimize(int ni);
 
+	/**
+	 * Select nearest neighbor at the last included time step (maxpose_)
+	 * @param c the GLMB component
+	 */
+	void  selectNN(VectorGLMBComponent2D &c);
 	/**
 	 * Sample n data associations from the already visited group, in order to perform gibbs sampler on each.
 	 * @param ni number of iterations of the optimizer
@@ -340,11 +347,12 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	std::vector<VectorGLMBComponent2D> components_; /**< VGLMB components */
 	double bestWeight_ = -std::numeric_limits<double>::infinity();
 	std::vector<boost::bimap<int, int>> best_DA_;
+	int best_DA_max_detection_time_; /**< last association time */
 
 	std::map<std::vector<boost::bimap<int, int>>, double> visited_;
 	double temp_;
-	int maxpose_; /**< optimize only up to this pose */
-
+	int maxpose_=0; /**< optimize only up to this pose */
+	int maxpose_prev_ =0;
 	int iteration_ = 0;
 	int iterationBest_ = 0;
 	double insertionP_ = 0.5;
@@ -566,18 +574,137 @@ inline void VectorGLMBSLAM2D::initComponents() {
 
 }
 inline void VectorGLMBSLAM2D::run(int numSteps) {
+
+
 	for (int i = 0; i < numSteps; i++) {
+		maxpose_prev_ = maxpose_;
 		maxpose_ = components_[0].poses_.size() * i / (numSteps*0.8);
 		if (maxpose_ > components_[0].poses_.size())
 			maxpose_ = components_[0].poses_.size();
-			
-		std::cout << "maxpose: " << maxpose_ << "\n";
+
+		if (best_DA_max_detection_time_ + 10 < maxpose_ ){
+			maxpose_ = best_DA_max_detection_time_ + 10 ;
+		}
+		std::cout << "maxpose: " << maxpose_ << " max det:  " << best_DA_max_detection_time_<< "  "<< maxpose_prev_ <<"\n";
 		std::cout << "iteration: " << iteration_ << " / " << numSteps<< "\n";
 		optimize(config.numLevenbergIterations_);
 
 	}
 
 }
+
+void  VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c){
+	std::vector<boost::bimap<int, int> > out;
+	out.resize(c.DA_bimap_.size());
+	int k = maxpose_-1;
+	for(int i =0; i < maxpose_; i++){
+		out[i] = c.DA_bimap_[i];
+
+	}
+	AssociationProbabilities probs;
+	for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
+		//std::cout << "selectNN\n";
+		probs.i.clear();
+		probs.l.clear();
+		double maxprob = -std::numeric_limits<double>::infinity();
+		int maxprobi = 0;
+		auto it = c.DA_bimap_[k].left.find(nz);
+		double selectedProb;
+		int selectedDA = -2;
+		if (it != c.DA_bimap_[k].left.end()) {
+			selectedDA = it->second;
+		}
+		double maxlikelihood = -std::numeric_limits<double>::infinity();
+		int maxlikelihoodi = 0;
+		for (int a = 0; a < c.DAProbs_[k][nz].i.size(); a++) {
+			double likelihood = c.DAProbs_[k][nz].l[a];
+
+			if (maxlikelihood < likelihood) {
+				maxlikelihood = likelihood;
+				maxlikelihoodi = a;
+			}
+			if (c.DAProbs_[k][nz].i[a] == -2) {
+				probs.i.push_back(c.DAProbs_[k][nz].i[a]);
+				probs.l.push_back(c.DAProbs_[k][nz].l[a]);
+				if (c.DAProbs_[k][nz].l[a] > maxprob) {
+					maxprob = c.DAProbs_[k][nz].l[a];
+					maxprobi = a;
+				}
+			} else if (c.DAProbs_[k][nz].i[a] == selectedDA) {
+				probs.i.push_back(c.DAProbs_[k][nz].i[a]);
+				if (c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a]
+						- c.landmarks_[0]->id()] == 1) {
+					likelihood += std::log(config.PE_)
+							- std::log(1 - config.PE_)
+							+ (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]
+									- c.landmarks_[0]->id()])
+									* std::log(1 - config.PD_);
+					//std::cout <<" single detection: increase:  " << std::log(config.PE_)-std::log(1-config.PE_) + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()])*std::log(1-config.PD_) <<"\n";
+					probs.l.push_back(likelihood);
+				} else {
+					probs.l.push_back(c.DAProbs_[k][nz].l[a]);
+				}
+				if (likelihood > maxprob) {
+					maxprob = likelihood;
+					maxprobi = a;
+				}
+			} else {
+				if (c.DA_bimap_[k].right.count(c.DAProbs_[k][nz].i[a])
+						== 0) { // landmark is not already associated to another measurement
+					probs.i.push_back(c.DAProbs_[k][nz].i[a]);
+					if (c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a]
+							- c.landmarks_[0]->id()] == 0) {
+						likelihood +=
+								std::log(config.PE_)
+										- std::log(1 - config.PE_)
+										+ (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]
+												- c.landmarks_[0]->id()])
+												* std::log(1 - config.PD_);
+						//std::cout <<" 0 detection: increase:  " << std::log(config.PE_)-std::log(1-config.PE_) + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()])*std::log(1-config.PD_)<<"\n";
+						probs.l.push_back(likelihood);
+					} else {
+						probs.l.push_back(c.DAProbs_[k][nz].l[a]);
+					}
+					if (likelihood > maxprob) {
+						maxprob = likelihood;
+						maxprobi = a;
+					}
+				}
+			}
+
+		}
+		int newdai = c.DAProbs_[k][nz].i[maxprobi];
+
+		if (newdai==-2){
+			std::cout << "false alarm\n";
+		}
+		//std::cout << "ass\n";
+		if (newdai != selectedDA) { // if selected association, change bimap
+
+			if (newdai >= 0) {
+				c.landmarks_numDetections_[newdai
+						- c.landmarks_[0]->id()]++;
+				if (selectedDA < 0) {
+					c.DA_bimap_[k].insert( { nz, newdai });
+				} else {
+
+					c.landmarks_numDetections_[selectedDA
+							- c.landmarks_[0]->id()]--;
+					c.DA_bimap_[k].left.replace_data(it, newdai);
+
+
+				}
+			} else { // if a change has to be made and new DA is false alarm, we need to remove the association
+				c.DA_bimap_[k].left.erase(it);
+				c.landmarks_numDetections_[selectedDA - c.landmarks_[0]->id()]--;
+
+			}
+
+		}
+	}
+
+}
+
 
 std::vector<boost::bimap<int, int> > VectorGLMBSLAM2D::sexyTime(VectorGLMBComponent2D &c1,
 		VectorGLMBComponent2D &c2) {
@@ -640,6 +767,60 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 #pragma omp parallel for
 		for (int i = 0; i < components_.size(); i++) {
 
+			if (maxpose_prev_ != maxpose_) {
+				auto &c = components_[i];
+				//selectNN( c);
+
+				updateFoV(c);
+				//std::cout << "fov update: \n";
+
+				updateDAProbs(c);
+				//std::cout << "da update: \n";
+				c.prevDA_bimap_ = c.DA_bimap_;
+				c.prevlandmarks_numDetections_ = c.landmarks_numDetections_;
+				double expectedChange = 0;
+				bool inserted;
+				selectNN(c);
+			//	std::cout << "nn update: \n";
+				updateGraph(c);
+				c.poses_[0]->setFixed(true);
+				c.optimizer_->initializeOptimization();
+				c.optimizer_->computeInitialGuess();
+				c.optimizer_->setVerbose(false);
+				c.optimizer_->optimize(ni);
+				calculateWeight(c);
+
+				std::map<std::vector<boost::bimap<int, int>>, double>::iterator it;
+#pragma omp critical(bestweight)
+				{
+					if (c.logweight_ > bestWeight_) {
+						bestWeight_ = c.logweight_;
+						best_DA_ = c.DA_bimap_;
+						best_DA_max_detection_time_ = maxpose_;
+						while(best_DA_max_detection_time_ > 0 && best_DA_[best_DA_max_detection_time_].size()==0){
+							best_DA_max_detection_time_--;
+						}
+						std::stringstream filename;
+
+						filename << "video/beststate_" << std::setfill('0')
+								<< std::setw(5) << iterationBest_++ << ".g2o";
+						c.optimizer_->save(filename.str().c_str(), 0);
+						std::cout << termcolor::yellow << "========== newbest:"
+								<< bestWeight_ << " ============\n"
+								<< termcolor::reset;
+					}
+				}
+				auto pair = std::make_pair(c.DA_bimap_, c.logweight_);
+#pragma omp critical(insert)
+			{
+			std::tie(it, inserted) = visited_.insert(pair);
+			insertionP_ = insertionP_*0.99;
+			if (inserted)
+				insertionP_ +=0.01;
+			}
+				it->second = c.logweight_;
+
+			}
 		}
 
 	}
@@ -747,6 +928,10 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 				best_DA_ = c.DA_bimap_;
 				std::stringstream filename;
 
+				best_DA_max_detection_time_ = maxpose_;
+				while(best_DA_max_detection_time_ > 0 && best_DA_[best_DA_max_detection_time_].size()==0){
+					best_DA_max_detection_time_--;
+				}
 				filename << "video/beststate_" << std::setfill('0')
 						<< std::setw(5) << iterationBest_++ << ".g2o";
 				c.optimizer_->save(filename.str().c_str(), 0);
@@ -778,14 +963,16 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 	//temp_ *= config.tempFactor_;
 
 std::cout << "insertionp: " << insertionP_ << " temp: " << temp_ << "\n";
-	if (insertionP_> 0.8 && temp_ > 1e-10){
-		temp_*=0.2;
+	if (insertionP_> 0.95 && temp_ > 1e-10){
+		temp_*=0.5;
 		std::cout << "reducing: \n";
 	}
-	if (insertionP_ < 0.2 && temp_ < 1e10){
-		temp_*=5;
+	if (insertionP_ < 0.05 && temp_ < 1e10){
+		temp_*=2;
 		std::cout << "augmenting: ";
 	}
+
+
 }
 inline void VectorGLMBSLAM2D::calculateWeight(VectorGLMBComponent2D &c) {
 	double logw = 0;
@@ -1337,6 +1524,7 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 				if (c.DAProbs_[k][nz].i[a] == -2) { // set measurement to false alarm
 					c.DAProbs_[k][nz].l[a] = config.logKappa_;
 				} else {
+
 
 					c.DAProbs_[k][nz].l[a] += std::log(config.PD_)
 							- std::log(1 - config.PD_);
