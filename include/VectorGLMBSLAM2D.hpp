@@ -179,6 +179,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 		int numGibbs_; /**< number of gibbs samples of the data association */
 		int numLevenbergIterations_; /**< number of gibbs samples of the data association */
 		int crossoverNumIter_;
+		int numPosesToOptimize_; /**< number of poses to optimize data associations */
 
 		int lmExistenceProb_;
 		int numIterations_; /**< number of iterations of main algorithm */
@@ -347,10 +348,11 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	std::vector<VectorGLMBComponent2D> components_; /**< VGLMB components */
 	double bestWeight_ = -std::numeric_limits<double>::infinity();
 	std::vector<boost::bimap<int, int>> best_DA_;
-	int best_DA_max_detection_time_; /**< last association time */
+	int best_DA_max_detection_time_ = 0; /**< last association time */
 
 	std::map<std::vector<boost::bimap<int, int>>, double> visited_;
 	double temp_;
+	int minpose_=0; /**< sample data association from this pose  onwards*/
 	int maxpose_=0; /**< optimize only up to this pose */
 	int maxpose_prev_ =0;
 	int iteration_ = 0;
@@ -535,6 +537,7 @@ void VectorGLMBSLAM2D::loadConfig(std::string filename) {
 	config.tempFactor_ = node["tempFactor"].as<double>();
 
 	config.crossoverNumIter_ = node["crossoverNumIter"].as<int>();
+	config.numPosesToOptimize_ = node["numPosesToOptimize"].as<int>();
 	config.finalStateFile_ = node["finalStateFile"].as<std::string>();
 
 	if (!YAML::convert<Eigen::Matrix2d>::decode(node["anchorInfo"],
@@ -578,13 +581,14 @@ inline void VectorGLMBSLAM2D::run(int numSteps) {
 
 	for (int i = 0; i < numSteps; i++) {
 		maxpose_prev_ = maxpose_;
-		maxpose_ = components_[0].poses_.size() * i / (numSteps*0.8);
+		maxpose_ = components_[0].poses_.size() * i / (numSteps*0.95);
 		if (maxpose_ > components_[0].poses_.size())
 			maxpose_ = components_[0].poses_.size();
 
 		if (best_DA_max_detection_time_ + 10 < maxpose_ ){
 			maxpose_ = best_DA_max_detection_time_ + 10 ;
 		}
+		minpose_ = std::max(0,maxpose_-config.numPosesToOptimize_);
 		std::cout << "maxpose: " << maxpose_ << " max det:  " << best_DA_max_detection_time_<< "  "<< maxpose_prev_ <<"\n";
 		std::cout << "iteration: " << iteration_ << " / " << numSteps<< "\n";
 		optimize(config.numLevenbergIterations_);
@@ -709,10 +713,15 @@ void  VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c){
 std::vector<boost::bimap<int, int> > VectorGLMBSLAM2D::sexyTime(VectorGLMBComponent2D &c1,
 		VectorGLMBComponent2D &c2) {
 
+
 	int threadnum = 0;
 #ifdef _OPENMP
 threadnum = omp_get_thread_num();
 #endif
+if (maxpose_== 0){
+	std::vector<boost::bimap<int, int> > out(c1.DA_bimap_);
+	return out;
+}
 	boost::uniform_int<> random_merge_point(-maxpose_, maxpose_);
 	std::vector<boost::bimap<int, int> > out;
 	out.resize(c1.DA_bimap_.size());
@@ -836,7 +845,9 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		updateFoV(c);
 		if (!c.reverted_ )
 			updateDAProbs(c);
-		c.prevDA_bimap_ = c.DA_bimap_;
+		for (int p=0 ; p< maxpose_; p++){
+			c.prevDA_bimap_[p] = c.DA_bimap_[p];
+		}
 		c.prevlandmarks_numDetections_ = c.landmarks_numDetections_;
 		double expectedChange = 0;
 		bool inserted;
@@ -886,14 +897,17 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 			//expectedChange += sampleLMDeath(c);
 			//expectedChange += sampleLMBirth(c);
 			//expectedChange += sampleLMDeath(c);
-			auto pair = std::make_pair(c.DA_bimap_, c.logweight_);
+			std::pair<std::vector<boost::bimap<int, int>>, double> pair(c.DA_bimap_, c.logweight_);
+
 #pragma omp critical(insert)
 			{
-			std::tie(it, inserted) = visited_.insert(pair);
+			//std::tie(it, inserted) =
+			visited_.insert(pair);
 			insertionP_ = insertionP_*0.99;
 			if (inserted)
 				insertionP_ +=0.01;
 			}
+
 			/*
 			if (!inserted) {
 				std::cout << "data association already inserted\n";
@@ -1145,7 +1159,7 @@ threadnum = omp_get_thread_num();
 			expectedWeightChange += (config.logKappa_ + (1 - config.PD_))
 					* c.landmarks_numFoV_[i];
 			int numdet = 0;
-			for (int k = 0; k < maxpose_; k++) {
+			for (int k = minpose_; k < maxpose_; k++) {
 				for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
 					// if measurement is associated, continue
 					auto it = c.DA_bimap_[k].left.find(nz);
@@ -1211,7 +1225,7 @@ threadnum = omp_get_thread_num();
 	int todelete = c.tomerge_[rp].first;
 	int toAddMeasurements = c.tomerge_[rp].second;
 
-	for (int k = 0; k < maxpose_; k++) {
+	for (int k = minpose_; k < maxpose_; k++) {
 		auto it = c.DA_bimap_[k].right.find(todelete);
 		if (it != c.DA_bimap_[k].right.end()) {
 			for (int l = 0; l < c.DAProbs_[k][it->second].i.size(); l++) {
@@ -1262,7 +1276,7 @@ threadnum = omp_get_thread_num();
 			expectedWeightChange += config.logKappa_
 					* c.landmarks_numDetections_[i];
 			int numdet = 0;
-			for (int k = 0; k < maxpose_; k++) {
+			for (int k = minpose_; k < maxpose_; k++) {
 				auto it = c.DA_bimap_[k].right.find(c.landmarks_[i]->id());
 				if (it != c.DA_bimap_[k].right.end()) {
 					for (int l = 0; l < c.DAProbs_[k][it->second].i.size();
@@ -1313,7 +1327,7 @@ threadnum = omp_get_thread_num();
 	std::fill(c.landmarksResetProb_.begin(), c.landmarksResetProb_.end(),
 			std::log(1 - config.PE_) - std::log(config.PE_));
 	std::fill(c.landmarksInitProb_.begin(), c.landmarksInitProb_.end(), 0.0);
-	for (int k = 0; k < maxpose_; k++) {
+	for (int k = minpose_; k < maxpose_; k++) {
 
 		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
 			probs.i.clear();
@@ -1486,7 +1500,7 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
 	jac_ws.updateSize(2, 2 * 3);
 	jac_ws.allocate();
 
-	for (int k = 0; k < maxpose_; k++) {
+	for (int k = minpose_; k < maxpose_; k++) {
 		c.DAProbs_[k].resize(c.Z_[k].size());
 
 		double posHLogDet;
@@ -1746,6 +1760,11 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 	c.landmarksResetProb_.resize(c.landmarks_.size(), 0.0);
 	c.landmarksInitProb_.resize(c.landmarks_.size(), 0.0);
 	c.DA_bimap_.resize(c.numPoses_);
+	boost::bimap<int, int> empty_bimap ;
+	for(int p=0;p<c.numPoses_;p++){
+		c.DA_bimap_[p] = empty_bimap;
+	}
+
 
 	c.Z_.resize(c.numPoses_);
 	c.DAProbs_.resize(c.numPoses_);
