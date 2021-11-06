@@ -589,6 +589,7 @@ inline void VectorGLMBSLAM2D::run(int numSteps) {
 			maxpose_ = best_DA_max_detection_time_ + 10 ;
 		}
 		minpose_ = std::max(0,maxpose_-config.numPosesToOptimize_);
+		minpose_ = 0;
 		std::cout << "maxpose: " << maxpose_ << " max det:  " << best_DA_max_detection_time_<< "  "<< maxpose_prev_ <<"\n";
 		std::cout << "iteration: " << iteration_ << " / " << numSteps<< "\n";
 		optimize(config.numLevenbergIterations_);
@@ -757,7 +758,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		std::cout << "sampling compos \n";
 	}
 
-	if (iteration_ % config.crossoverNumIter_ == 0) {
+	if (iteration_ % config.crossoverNumIter_ == 0 and false) {
 
 		std::cout << termcolor::magenta
 				<< " =========== SexyTime!============\n"
@@ -901,7 +902,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 
 #pragma omp critical(insert)
 			{
-			//std::tie(it, inserted) =
+			std::tie(it, inserted) =
 			visited_.insert(pair);
 			insertionP_ = insertionP_*0.99;
 			if (inserted)
@@ -1764,7 +1765,7 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 	for(int p=0;p<c.numPoses_;p++){
 		c.DA_bimap_[p] = empty_bimap;
 	}
-
+	c.prevDA_bimap_ = c.DA_bimap_;
 
 	c.Z_.resize(c.numPoses_);
 	c.DAProbs_.resize(c.numPoses_);
