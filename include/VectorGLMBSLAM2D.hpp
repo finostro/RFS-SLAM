@@ -61,6 +61,7 @@
 #include <boost/random/uniform_int.hpp>
 
 #include <boost/bimap.hpp>
+#include <boost/container/allocator.hpp>
 #include <yaml-cpp/yaml.h>
 
 #include "misc/EigenYamlSerialization.hpp"
@@ -76,8 +77,8 @@
 namespace rfs {
 
 struct bimap_less {
-	bool operator()(const boost::bimap<int, int> x,
-			const boost::bimap<int, int> y) const {
+	bool operator()(const boost::bimap<int, int, boost::container::allocator<int>> x,
+			const boost::bimap<int, int, boost::container::allocator<int>> y) const {
 
 		return x.left < y.left;
 	}
@@ -113,7 +114,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	SlamLinearSolver *linearSolver_;
 	SlamBlockSolver *blockSolver_;
 
-	std::vector<boost::bimap<int, int>> DA_bimap_, prevDA_bimap_; /**< Bimap containing data association hypothesis at time k  */
+	std::vector<boost::bimap<int, int, boost::container::allocator<int>>> DA_bimap_, prevDA_bimap_; /**< Bimap containing data association hypothesis at time k  */
 
 	std::vector<std::vector<MeasurementEdge*> > Z_; /**< Measurement edges stored, in order to set data association and add to graph later */
 	std::vector<std::vector<AssociationProbabilities> > DAProbs_; /**< DAProbs_ [k][nz] are is the association probabilities of measurement
@@ -275,7 +276,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	/**
 	 * Merge two data associations into a third one, by selecting a random merge time.
 	 */
-	std::vector<boost::bimap<int, int> > sexyTime(VectorGLMBComponent2D &c1, VectorGLMBComponent2D &c2);
+	std::vector<boost::bimap<int, int, boost::container::allocator<int>> > sexyTime(VectorGLMBComponent2D &c1, VectorGLMBComponent2D &c2);
 
 	/**
 	 * Use the probabilities calculated in sampleDA to reset all the detections of a single landmark to all false alarms.
@@ -299,7 +300,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 * Change the data association in component c to the one stored on da.
 	 */
 	void changeDA(VectorGLMBComponent2D &c,
-			const std::vector<boost::bimap<int, int> > &da);
+			const std::vector<boost::bimap<int, int, boost::container::allocator<int>> > &da);
 
 	/**
 	 * Revert the current data association to keep the last one
@@ -347,10 +348,10 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	std::vector<VectorGLMBComponent2D> components_; /**< VGLMB components */
 	double bestWeight_ = -std::numeric_limits<double>::infinity();
-	std::vector<boost::bimap<int, int>> best_DA_;
+	std::vector<boost::bimap<int, int, boost::container::allocator<int>> > best_DA_;
 	int best_DA_max_detection_time_ = 0; /**< last association time */
 
-	std::map<std::vector<boost::bimap<int, int>>, double> visited_;
+	std::map<std::vector<boost::bimap<int, int, boost::container::allocator<int>> >, double> visited_;
 	double temp_;
 	int minpose_=0; /**< sample data association from this pose  onwards*/
 	int maxpose_=0; /**< optimize only up to this pose */
@@ -377,7 +378,7 @@ VectorGLMBSLAM2D::~VectorGLMBSLAM2D() {
 }
 
 void VectorGLMBSLAM2D::changeDA(VectorGLMBComponent2D &c,
-		const std::vector<boost::bimap<int, int> > &da) {
+		const std::vector<boost::bimap<int, int, boost::container::allocator<int>> > &da) {
 	// update bimaps!!!
 	c.DA_bimap_ = da;
 
@@ -599,7 +600,7 @@ inline void VectorGLMBSLAM2D::run(int numSteps) {
 }
 
 void  VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c){
-	std::vector<boost::bimap<int, int> > out;
+	std::vector<boost::bimap<int, int, boost::container::allocator<int>> > out;
 	out.resize(c.DA_bimap_.size());
 	int k = maxpose_-1;
 	for(int i =0; i < maxpose_; i++){
@@ -711,7 +712,7 @@ void  VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c){
 }
 
 
-std::vector<boost::bimap<int, int> > VectorGLMBSLAM2D::sexyTime(VectorGLMBComponent2D &c1,
+std::vector<boost::bimap<int, int, boost::container::allocator<int>> > VectorGLMBSLAM2D::sexyTime(VectorGLMBComponent2D &c1,
 		VectorGLMBComponent2D &c2) {
 
 
@@ -720,11 +721,11 @@ std::vector<boost::bimap<int, int> > VectorGLMBSLAM2D::sexyTime(VectorGLMBCompon
 threadnum = omp_get_thread_num();
 #endif
 if (maxpose_== 0){
-	std::vector<boost::bimap<int, int> > out(c1.DA_bimap_);
+	std::vector<boost::bimap<int, int, boost::container::allocator<int>> > out(c1.DA_bimap_);
 	return out;
 }
 	boost::uniform_int<> random_merge_point(-maxpose_, maxpose_);
-	std::vector<boost::bimap<int, int> > out;
+	std::vector<boost::bimap<int, int, boost::container::allocator<int>> > out;
 	out.resize(c1.DA_bimap_.size());
 	int merge_point = random_merge_point(rfs::randomGenerators_[threadnum]);
 
@@ -800,7 +801,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 				c.optimizer_->optimize(ni);
 				calculateWeight(c);
 
-				std::map<std::vector<boost::bimap<int, int>>, double>::iterator it;
+				std::map<std::vector<boost::bimap<int, int, boost::container::allocator<int>> >, double>::iterator it;
 #pragma omp critical(bestweight)
 				{
 					if (c.logweight_ > bestWeight_) {
@@ -852,7 +853,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 		c.prevlandmarks_numDetections_ = c.landmarks_numDetections_;
 		double expectedChange = 0;
 		bool inserted;
-		std::map<std::vector<boost::bimap<int, int>>, double>::iterator it;
+		std::map<std::vector<boost::bimap<int, int, boost::container::allocator<int>> >, double>::iterator it;
 
 		 {
 //do{
@@ -898,7 +899,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 			//expectedChange += sampleLMDeath(c);
 			//expectedChange += sampleLMBirth(c);
 			//expectedChange += sampleLMDeath(c);
-			std::pair<std::vector<boost::bimap<int, int>>, double> pair(c.DA_bimap_, c.logweight_);
+			std::pair<std::vector<boost::bimap<int, int, boost::container::allocator<int>> >, double> pair(c.DA_bimap_, c.logweight_);
 
 #pragma omp critical(insert)
 			{
@@ -1761,7 +1762,7 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 	c.landmarksResetProb_.resize(c.landmarks_.size(), 0.0);
 	c.landmarksInitProb_.resize(c.landmarks_.size(), 0.0);
 	c.DA_bimap_.resize(c.numPoses_);
-	boost::bimap<int, int> empty_bimap ;
+	boost::bimap<int, int, boost::container::allocator<int>> empty_bimap ;
 	for(int p=0;p<c.numPoses_;p++){
 		c.DA_bimap_[p] = empty_bimap;
 	}

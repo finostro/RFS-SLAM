@@ -63,6 +63,7 @@
 #include <boost/random/uniform_int.hpp>
 
 #include <boost/bimap.hpp>
+#include <boost/container/allocator.hpp>
 #include <yaml-cpp/yaml.h>
 
 #include "misc/EigenYamlSerialization.hpp"
@@ -78,8 +79,8 @@
 namespace rfs {
 
 struct bimap_less {
-	bool operator()(const boost::bimap<int, int> x,
-			const boost::bimap<int, int> y) const {
+	bool operator()(const boost::bimap<int, int, boost::container::allocator<int>> x,
+			const boost::bimap<int, int, boost::container::allocator<int>> y) const {
 
 		return x.left < y.left;
 	}
@@ -115,7 +116,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	SlamLinearSolver *linearSolver_;
 	SlamBlockSolver *blockSolver_;
 
-	std::vector<boost::bimap<int, int>> DA_bimap_, prevDA_bimap_; /**< Bimap containing data association hypothesis at time k  */
+	std::vector<boost::bimap<int, int, boost::container::allocator<int>> > DA_bimap_, prevDA_bimap_; /**< Bimap containing data association hypothesis at time k  */
 
 	std::vector<std::vector<MeasurementEdge*> > Z_; /**< Measurement edges stored, in order to set data association and add to graph later */
 	std::vector<std::vector<AssociationProbabilities> > DAProbs_; /**< DAProbs_ [k][nz] are is the association probabilities of measurement
@@ -279,7 +280,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 * Change the data association in component c to the one stored on da.
 	 */
 	void changeDA(VectorGLMBComponent2D &c,
-			const std::vector<boost::bimap<int, int> > &da);
+			const std::vector<boost::bimap<int, int, boost::container::allocator<int>> > &da);
 
 	/**
 	 * Returns a data association with the nearest neighbor at time maxpose_
@@ -332,9 +333,9 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	std::vector<VectorGLMBComponent2D> components_; /**< VGLMB components */
 	double bestWeight_ = -std::numeric_limits<double>::infinity();
-	std::vector<boost::bimap<int, int>> best_DA_;
+	std::vector<boost::bimap<int, int, boost::container::allocator<int>> > best_DA_;
 
-	std::map<std::vector<boost::bimap<int, int>>, double> visited_;
+	std::map<std::vector<boost::bimap<int, int, boost::container::allocator<int>> >, double> visited_;
 	double temp_;
 	int maxpose_; /**< optimize only up to this pose */
 
@@ -550,7 +551,7 @@ void MLAG2O2D::selectMLA(VectorGLMBComponent2D &c){
 }
 
 void MLAG2O2D::changeDA(VectorGLMBComponent2D &c,
-		const std::vector<boost::bimap<int, int> > &da) {
+		const std::vector<boost::bimap<int, int, boost::container::allocator<int>> > &da) {
 	// update bimaps!!!
 	c.DA_bimap_ = da;
 

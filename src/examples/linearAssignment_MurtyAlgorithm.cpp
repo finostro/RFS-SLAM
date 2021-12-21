@@ -40,7 +40,6 @@
 #include "BruteForceAssignment.hpp"
 
 #include <boost/timer/timer.hpp>
-#include <boost/format.hpp>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_01.hpp>
 #include <boost/random/variate_generator.hpp>
@@ -109,7 +108,7 @@ int main(int argc, char *argv[])
     printf("[%d : %f] %d %d %d %d %d %d %d\n", rank, score, a[0], a[1], a[2], a[3], a[4], a[5], a[6]); 
   }  
   boost::timer::cpu_times t = timer.elapsed();
-  std::cout << boost::format("Elapsed time: %1% [ns]\n\n") % t.wall;
+  std::cout <<"Elapsed time:" << t.wall<< " [ns]\n"  ;
 
 
   // Brute force approach

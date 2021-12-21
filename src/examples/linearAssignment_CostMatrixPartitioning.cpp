@@ -40,7 +40,6 @@
 #include "CostMatrix.hpp"
 
 #include <boost/timer/timer.hpp>
-#include <boost/format.hpp>
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_01.hpp>
 #include <boost/random/variate_generator.hpp>
@@ -85,7 +84,7 @@ int main(int argc, char *argv[])
   int nP = likelihoodMat.partition();
   
   boost::timer::cpu_times t = timer.elapsed();
-  std::cout << boost::format("Elapsed time: %1% [ns]\n") % t.wall;
+  std::cout <<"Elapsed time:" << t.wall<< " [ns]\n"  ;
 
   for(int n = 0; n < nP; n++){
     

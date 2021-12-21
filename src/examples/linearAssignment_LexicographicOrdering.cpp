@@ -41,7 +41,6 @@
 #include "PermutationLexicographic.hpp"
 
 #include <boost/timer/timer.hpp>
-#include <boost/format.hpp>
 
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_01.hpp>
