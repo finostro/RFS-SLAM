@@ -590,7 +590,7 @@ inline void VectorGLMBSLAM2D::run(int numSteps) {
 			maxpose_ = best_DA_max_detection_time_ + 10 ;
 		}
 		minpose_ = std::max(0,maxpose_-config.numPosesToOptimize_);
-		minpose_ = 0;
+		//minpose_ = 0;
 		std::cout << "maxpose: " << maxpose_ << " max det:  " << best_DA_max_detection_time_<< "  "<< maxpose_prev_ <<"\n";
 		std::cout << "iteration: " << iteration_ << " / " << numSteps<< "\n";
 		optimize(config.numLevenbergIterations_);
@@ -807,7 +807,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 					if (c.logweight_ > bestWeight_) {
 						bestWeight_ = c.logweight_;
 						best_DA_ = c.DA_bimap_;
-						best_DA_max_detection_time_ = maxpose_;
+						best_DA_max_detection_time_ = maxpose_-1;
 						while(best_DA_max_detection_time_ > 0 && best_DA_[best_DA_max_detection_time_].size()==0){
 							best_DA_max_detection_time_--;
 						}
@@ -979,11 +979,12 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 	//temp_ *= config.tempFactor_;
 
 std::cout << "insertionp: " << insertionP_ << " temp: " << temp_ << "\n";
-	if (insertionP_> 0.95 && temp_ > 1e-10){
+
+	if (insertionP_> 0.95 && temp_ > 5e-1){
 		temp_*=0.5;
 		std::cout << "reducing: \n";
 	}
-	if (insertionP_ < 0.05 && temp_ < 1e10){
+	if (insertionP_ < 0.05 && temp_ < 1e5){
 		temp_*=2;
 		std::cout << "augmenting: ";
 	}
@@ -1317,6 +1318,7 @@ threadnum = omp_get_thread_num();
 }
 
 inline double VectorGLMBSLAM2D::sampleDA(VectorGLMBComponent2D &c) {
+	std::vector<double> P ;
 	boost::uniform_real<> uni_dist(0, 1);
 	int threadnum = 0;
 #ifdef _OPENMP
@@ -1404,11 +1406,11 @@ threadnum = omp_get_thread_num();
 				}
 			}
 
-			auto P = probs.l;
+			P.resize(probs.l.size());
 			double alternativeprob = 0;
 			for (int i = 0; i < P.size(); i++) {
 
-				P[i] = std::exp((P[i] - maxprob));// /temp_);
+				P[i] = exp((probs.l[i] - maxprob));// /temp_);
 
 				//std::cout << p << "   ";
 				alternativeprob += P[i];

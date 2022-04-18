@@ -412,12 +412,12 @@ void MLAG2O2D::selectMLA(VectorGLMBComponent2D &c){
 
 	std::cout <<"np : " << nP << "\n";
 	std::cout << "nz " << c.DAProbs_[maxpose_].size() << "  nl " << landmarksInFov.size() << "\n";
-	for ( int l=0 ;l <  landmarksInFov.size() ; l++){
-	for (int nz = 0; nz < c.DAProbs_[maxpose_].size(); nz++) {
-		std::cout << "  " <<  L[l][nz];
-	}
-	std::cout << "\n";
-	}
+	// for ( int l=0 ;l <  landmarksInFov.size() ; l++){
+	// for (int nz = 0; nz < c.DAProbs_[maxpose_].size(); nz++) {
+	// 	std::cout << "  " <<  L[l][nz];
+	// }
+	// std::cout << "\n";
+	// }
 
 	for (int p = 0; p < nP; p++) {
 
@@ -535,7 +535,7 @@ void MLAG2O2D::selectMLA(VectorGLMBComponent2D &c){
 	              }else{  // landmark r unassigned
 
 
-						std::cout << "lm not used inserted\n";
+						//std::cout << "lm not used inserted\n";
 	              }
 
 	            }
@@ -714,6 +714,7 @@ inline void MLAG2O2D::run(int numSteps) {
 }
 
 inline void MLAG2O2D::optimize(int ni) {
+	std::cout <<"start iteration " << iteration_ << "\n";
 
 	auto &c = components_[0];
 
@@ -736,17 +737,23 @@ inline void MLAG2O2D::optimize(int ni) {
 
 
 	updateGraph(c);
+	std::cout <<"updated graph iteration " << iteration_ << "\n";
+	
 	c.poses_[0]->setFixed(true);
 	c.optimizer_->initializeOptimization();
 	c.optimizer_->computeInitialGuess();
 	c.optimizer_->setVerbose(false);
 	c.optimizer_->optimize(ni);
 	calculateWeight(c);
+	std::cout <<"calculated weight iteration " << iteration_ << "\n";
 
 	std::stringstream filename;
 	filename << "video/beststate_" << std::setfill('0')
 			<< std::setw(5) << iteration_ << ".g2o";
 	c.optimizer_->save(filename.str().c_str(), 0);
+
+
+	std::cout <<"end iteration " << iteration_ << "\n";
 
 	iteration_++;
 
@@ -811,16 +818,15 @@ inline void MLAG2O2D::updateGraph(VectorGLMBComponent2D &c) {
 			}
 			int previd =
 					c.Z_[k][nz]->vertex(1) ? c.Z_[k][nz]->vertex(1)->id() : -2; /**< previous data association */
-			if (previd!=-2){
-				std::cerr << "measurement already associated !\n";
+			if (previd!=-2 && previd != selectedDA){
+				std::cerr << "measurement already associated "<< previd << "!\n";
 			}
 			if (previd == selectedDA) {
 				continue;
 			}
 			if (selectedDA >= 0) {
 
-				std::cout << "adding edge  ";
-				std::cout << selectedDA << "\n";
+				std::cout << "adding edge z " << nz <<" lm " <<  selectedDA - c.landmarks_[0]->id() << "\n";
 				// if edge was already in graph, modify it
 				if (previd >= 0) {
 					c.optimizer_->setEdgeVertex(c.Z_[k][nz], 1,
@@ -845,15 +851,15 @@ inline void MLAG2O2D::updateGraph(VectorGLMBComponent2D &c) {
 	}
 	for (auto lm : c.landmarks_) {
 		// if landmark has only 1 edge then it is not detected we deactivate it
-		std::cout << " lmidx : " << lm->id() - c.landmarks_[0]->id() <<"\n";
+		//std::cout << " lmidx : " << lm->id() - c.landmarks_[0]->id() <<"\n";
 		if (lm->edges().size() == 1) {
 
-			std::cout <<"deactivate\n";
+			//std::cout <<"deactivate\n";
 			for (auto edge : lm->edges()) {
 				dynamic_cast<g2o::OptimizableGraph::Edge*>(edge)->setLevel(1);
 			}
 		} else {
-			std::cout <<"activate\n";
+			//std::cout <<"activate\n";
 			for (auto edge : lm->edges()) {
 				dynamic_cast<g2o::OptimizableGraph::Edge*>(edge)->setLevel(0);
 			}

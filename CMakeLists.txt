@@ -28,7 +28,7 @@ SET(RFSSLAM_PATCH_VERSION 0)
 SET(RFSSLAM_VERSION ${RFSSLAM_MAJOR_VERSION}.${RFSSLAM_MINOR_VERSION}.${RFSSLAM_PATCH_VERSION})
 message(STATUS "RFSSLAM Version ${RFSSLAM_VERSION}")
 
-
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
 # choose latest opengl
 set(OpenGL_GL_PREFERENCE GLVND)
@@ -62,6 +62,61 @@ IF(APPLE)
 ENDIF()
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native ")
+
+
+# sanitizer
+
+if (USE_SANITIZER STREQUAL "Address")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address  -fno-omit-frame-pointer")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address  -fno-omit-frame-pointer")
+    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=address  -fno-omit-frame-pointer")
+elseif (USE_SANITIZER STREQUAL "Thread")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=thread")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
+    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=thread")
+elseif (USE_SANITIZER STREQUAL "Undefined")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=undefined")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined")
+    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=undefined")
+elseif (USE_SANITIZER STREQUAL "Leak")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=leak")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=leak")
+    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=leak")
+elseif (USE_SANITIZER STREQUAL "Memory")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=memory  -fno-omit-frame-pointer -fsanitize-memory-track-origins")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=memory  -fno-omit-frame-pointer -fsanitize-memory-track-origins")
+    set (CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS}  -fsanitize=memory  -fno-omit-frame-pointer -fsanitize-memory-track-origins")
+else()
+    SET(USE_SANITIZER "disabled" CACHE STRING "set sanitizer type.")
+endif()
+    
+    
+    # Google perftools
+FIND_PACKAGE(Perftools)
+IF(Perftools_FOUND)
+  IF("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    SET(USE_CPU_PROFILER OFF CACHE BOOL "Use Google Perftools for CPU profiling.")
+    SET(USE_HEAP_PROFILER OFF CACHE BOOL "Use Google Perftools for heap profiling.")
+  ELSE()
+    SET(USE_CPU_PROFILER OFF) # Does not play nice with Clang
+    SET(USE_HEAP_PROFILER OFF)
+  ENDIF()
+  IF(USE_CPU_PROFILER)
+    ADD_DEFINITIONS(-D_PERFTOOLS_CPU)
+    IF(APPLE)
+      SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-no_pie ") # Required due to ASLR
+    ENDIF()
+  ENDIF()
+  IF(USE_HEAP_PROFILER)
+    ADD_DEFINITIONS(-D_PERFTOOLS_HEAP)
+    IF(APPLE)
+      SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wl,-no_pie ") # Required due to ASLR
+    ENDIF()
+  ENDIF()
+ENDIF()
+
+
+
 # OpenMP
 IF(APPLE AND ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang"))
   SET(USE_OPENMP OFF) # OpenMP does not yet work with Clang, but hopefully soon
@@ -107,8 +162,28 @@ FIND_PACKAGE(yaml-cpp REQUIRED)
 
 
 # VTK visualization
-find_package(VTK REQUIRED)
-include(${VTK_USE_FILE})
+find_package(VTK REQUIRED 	COMPONENTS 
+    ChartsCore
+    CommonCore
+    CommonDataModel
+    CommonExecutionModel
+    FiltersCore
+    FiltersExtraction
+    FiltersGeometry
+    FiltersModeling
+    ImagingCore
+    ImagingSources
+    InteractionStyle
+    InteractionWidgets
+    IOCore
+    IOGeometry
+    IOImage
+    IOLegacy
+    IOPLY
+    RenderingAnnotation
+    RenderingLOD
+    ViewsContext2D)
+    
 
 # GTest
 # If using Ubuntu apt-get to install, go to /usr/src/gtest,
@@ -134,12 +209,13 @@ INCLUDE_DIRECTORIES(test)
 INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${EIGEN_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${CERES_INCLUDE_DIRS})
-INCLUDE_DIRECTORIES(${GPERFTOOLS_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${PERFTOOLS_INCLUDE_DIRS})
 IF(GTEST_FOUND)
   INCLUDE_DIRECTORIES(${GTEST_INCLUDE_DIRS})
 ENDIF()
 INCLUDE_DIRECTORIES(${G2O_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${CSPARSE_INCLUDE_DIR})
+INCLUDE_DIRECTORIES(${VTK_INCLUDE_DIRS})
 #LINK_DIRECTORIES()
 
 ADD_LIBRARY(rfsslam 
@@ -169,7 +245,9 @@ ADD_LIBRARY(rfsslam
   src/GaussianGenerators.cpp
   src/AssociationSampler.cpp
   )
-TARGET_LINK_LIBRARIES(rfsslam ${Boost_LIBRARIES})
+  
+  
+TARGET_LINK_LIBRARIES(rfsslam   ${Boost_LIBRARIES}  ${VTK_LIBRARIES})
 
 ADD_EXECUTABLE(rbphdslam2dSim src/rbphdslam2dSim.cpp)
 TARGET_LINK_LIBRARIES(rbphdslam2dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
@@ -207,7 +285,7 @@ ADD_EXECUTABLE(rfsceresslam1dSim src/rfsceresslam1dSim.cpp)
 TARGET_LINK_LIBRARIES(rfsceresslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(vglmbslam2d src/vglmbslam2d.cpp)
-TARGET_LINK_LIBRARIES(vglmbslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}  )
+TARGET_LINK_LIBRARIES(vglmbslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} )
 
 ADD_EXECUTABLE(nng2oslam2d src/nng2osolver.cpp)
 TARGET_LINK_LIBRARIES(nng2oslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES} )
