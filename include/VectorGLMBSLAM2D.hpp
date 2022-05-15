@@ -607,7 +607,7 @@ void VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c)
 	{
 		out[i] = c.DA_bimap_[i];
 	}
-	max_detection_time_ = maxpose_;
+	int max_detection_time_ = maxpose_;
 	while(max_detection_time_ > 0 && c.DA_bimap_[max_detection_time_].size()==0){
 		max_detection_time_--;
 	}
