@@ -586,10 +586,10 @@ inline void VectorGLMBSLAM2D::run(int numSteps) {
 		if (maxpose_ > components_[0].poses_.size())
 			maxpose_ = components_[0].poses_.size();
 
-		if (best_DA_max_detection_time_ + 10 < maxpose_ ){
-			maxpose_ = best_DA_max_detection_time_ + 10 ;
-		}
-		minpose_ = std::max(0,maxpose_-config.numPosesToOptimize_);
+		// if (best_DA_max_detection_time_ + 20 < maxpose_ ){
+		//  	maxpose_ = best_DA_max_detection_time_ + 20 ;
+		//  }
+		minpose_ = std::max(0,std::min(maxpose_-config.numPosesToOptimize_ , best_DA_max_detection_time_) );
 		//minpose_ = 0;
 		std::cout << "maxpose: " << maxpose_ << " max det:  " << best_DA_max_detection_time_<< "  "<< maxpose_prev_ <<"\n";
 		std::cout << "iteration: " << iteration_ << " / " << numSteps<< "\n";
@@ -599,118 +599,128 @@ inline void VectorGLMBSLAM2D::run(int numSteps) {
 
 }
 
-void  VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c){
-	std::vector<boost::bimap<int, int, boost::container::allocator<int>> > out;
+void VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c)
+{
+	std::vector<boost::bimap<int, int, boost::container::allocator<int>>> out;
 	out.resize(c.DA_bimap_.size());
-	int k = maxpose_-1;
-	for(int i =0; i < maxpose_; i++){
+	for (int i = 0; i < maxpose_; i++)
+	{
 		out[i] = c.DA_bimap_[i];
-
 	}
-	AssociationProbabilities probs;
-	for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
-		//std::cout << "selectNN\n";
-		probs.i.clear();
-		probs.l.clear();
-		double maxprob = -std::numeric_limits<double>::infinity();
-		int maxprobi = 0;
-		auto it = c.DA_bimap_[k].left.find(nz);
-		double selectedProb;
-		int selectedDA = -2;
-		if (it != c.DA_bimap_[k].left.end()) {
-			selectedDA = it->second;
-		}
-		double maxlikelihood = -std::numeric_limits<double>::infinity();
-		int maxlikelihoodi = 0;
-		for (int a = 0; a < c.DAProbs_[k][nz].i.size(); a++) {
-			double likelihood = c.DAProbs_[k][nz].l[a];
-
-			if (maxlikelihood < likelihood) {
-				maxlikelihood = likelihood;
-				maxlikelihoodi = a;
+	for (int k = best_DA_max_detection_time_ ; k < maxpose_; k++)
+	{
+		AssociationProbabilities probs;
+		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++)
+		{
+			// std::cout << "selectNN\n";
+			probs.i.clear();
+			probs.l.clear();
+			double maxprob = -std::numeric_limits<double>::infinity();
+			int maxprobi = 0;
+			auto it = c.DA_bimap_[k].left.find(nz);
+			double selectedProb;
+			int selectedDA = -2;
+			if (it != c.DA_bimap_[k].left.end())
+			{
+				selectedDA = it->second;
 			}
-			if (c.DAProbs_[k][nz].i[a] == -2) {
-				probs.i.push_back(c.DAProbs_[k][nz].i[a]);
-				probs.l.push_back(c.DAProbs_[k][nz].l[a]);
-				if (c.DAProbs_[k][nz].l[a] > maxprob) {
-					maxprob = c.DAProbs_[k][nz].l[a];
-					maxprobi = a;
+			double maxlikelihood = -std::numeric_limits<double>::infinity();
+			int maxlikelihoodi = 0;
+			for (int a = 0; a < c.DAProbs_[k][nz].i.size(); a++)
+			{
+				double likelihood = c.DAProbs_[k][nz].l[a];
+
+				if (maxlikelihood < likelihood)
+				{
+					maxlikelihood = likelihood;
+					maxlikelihoodi = a;
 				}
-			} else if (c.DAProbs_[k][nz].i[a] == selectedDA) {
-				probs.i.push_back(c.DAProbs_[k][nz].i[a]);
-				if (c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a]
-						- c.landmarks_[0]->id()] == 1) {
-					likelihood += std::log(config.PE_)
-							- std::log(1 - config.PE_)
-							+ (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]
-									- c.landmarks_[0]->id()])
-									* std::log(1 - config.PD_);
-					//std::cout <<" single detection: increase:  " << std::log(config.PE_)-std::log(1-config.PE_) + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()])*std::log(1-config.PD_) <<"\n";
-					probs.l.push_back(likelihood);
-				} else {
-					probs.l.push_back(c.DAProbs_[k][nz].l[a]);
-				}
-				if (likelihood > maxprob) {
-					maxprob = likelihood;
-					maxprobi = a;
-				}
-			} else {
-				if (c.DA_bimap_[k].right.count(c.DAProbs_[k][nz].i[a])
-						== 0) { // landmark is not already associated to another measurement
+				if (c.DAProbs_[k][nz].i[a] == -2)
+				{
 					probs.i.push_back(c.DAProbs_[k][nz].i[a]);
-					if (c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a]
-							- c.landmarks_[0]->id()] == 0) {
-						likelihood +=
-								std::log(config.PE_)
-										- std::log(1 - config.PE_)
-										+ (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]
-												- c.landmarks_[0]->id()])
-												* std::log(1 - config.PD_);
-						//std::cout <<" 0 detection: increase:  " << std::log(config.PE_)-std::log(1-config.PE_) + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()])*std::log(1-config.PD_)<<"\n";
+					probs.l.push_back(c.DAProbs_[k][nz].l[a]);
+					if (c.DAProbs_[k][nz].l[a] > maxprob)
+					{
+						maxprob = c.DAProbs_[k][nz].l[a];
+						maxprobi = a;
+					}
+				}
+				else if (c.DAProbs_[k][nz].i[a] == selectedDA)
+				{
+					probs.i.push_back(c.DAProbs_[k][nz].i[a]);
+					if (c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()] == 1)
+					{
+						likelihood += std::log(config.PE_) - std::log(1 - config.PE_) + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()]) * std::log(1 - config.PD_);
+						// std::cout <<" single detection: increase:  " << std::log(config.PE_)-std::log(1-config.PE_) + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()])*std::log(1-config.PD_) <<"\n";
 						probs.l.push_back(likelihood);
-					} else {
+					}
+					else
+					{
 						probs.l.push_back(c.DAProbs_[k][nz].l[a]);
 					}
-					if (likelihood > maxprob) {
+					if (likelihood > maxprob)
+					{
 						maxprob = likelihood;
 						maxprobi = a;
 					}
 				}
-			}
-
-		}
-		int newdai = c.DAProbs_[k][nz].i[maxprobi];
-
-		if (newdai==-2){
-			std::cout << "false alarm\n";
-		}
-		//std::cout << "ass\n";
-		if (newdai != selectedDA) { // if selected association, change bimap
-
-			if (newdai >= 0) {
-				c.landmarks_numDetections_[newdai
-						- c.landmarks_[0]->id()]++;
-				if (selectedDA < 0) {
-					c.DA_bimap_[k].insert( { nz, newdai });
-				} else {
-
-					c.landmarks_numDetections_[selectedDA
-							- c.landmarks_[0]->id()]--;
-					c.DA_bimap_[k].left.replace_data(it, newdai);
-
-
+				else
+				{
+					if (c.DA_bimap_[k].right.count(c.DAProbs_[k][nz].i[a]) == 0)
+					{ // landmark is not already associated to another measurement
+						probs.i.push_back(c.DAProbs_[k][nz].i[a]);
+						if (c.landmarks_numDetections_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()] == 0)
+						{
+							likelihood +=
+								std::log(config.PE_) - std::log(1 - config.PE_) + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a] - c.landmarks_[0]->id()]) * std::log(1 - config.PD_);
+							// std::cout <<" 0 detection: increase:  " << std::log(config.PE_)-std::log(1-config.PE_) + (c.landmarks_numFoV_[c.DAProbs_[k][nz].i[a]-c.landmarks_[0]->id()])*std::log(1-config.PD_)<<"\n";
+							probs.l.push_back(likelihood);
+						}
+						else
+						{
+							probs.l.push_back(c.DAProbs_[k][nz].l[a]);
+						}
+						if (likelihood > maxprob)
+						{
+							maxprob = likelihood;
+							maxprobi = a;
+						}
+					}
 				}
-			} else { // if a change has to be made and new DA is false alarm, we need to remove the association
-				c.DA_bimap_[k].left.erase(it);
-				c.landmarks_numDetections_[selectedDA - c.landmarks_[0]->id()]--;
-
 			}
+			int newdai = c.DAProbs_[k][nz].i[maxprobi];
 
+			if (newdai == -2)
+			{
+				std::cout << "false alarm\n";
+			}
+			// std::cout << "ass\n";
+			if (newdai != selectedDA)
+			{ // if selected association, change bimap
+
+				if (newdai >= 0)
+				{
+					c.landmarks_numDetections_[newdai - c.landmarks_[0]->id()]++;
+					if (selectedDA < 0)
+					{
+						c.DA_bimap_[k].insert({nz, newdai});
+					}
+					else
+					{
+
+						c.landmarks_numDetections_[selectedDA - c.landmarks_[0]->id()]--;
+						c.DA_bimap_[k].left.replace_data(it, newdai);
+					}
+				}
+				else
+				{ // if a change has to be made and new DA is false alarm, we need to remove the association
+					c.DA_bimap_[k].left.erase(it);
+					c.landmarks_numDetections_[selectedDA - c.landmarks_[0]->id()]--;
+				}
+			}
 		}
 	}
-
 }
-
 
 std::vector<boost::bimap<int, int, boost::container::allocator<int>> > VectorGLMBSLAM2D::sexyTime(VectorGLMBComponent2D &c1,
 		VectorGLMBComponent2D &c2) {
@@ -874,7 +884,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 					expectedChange += sampleLMBirth(c);
 					break;
 				case 1:
-					expectedChange += sampleLMDeath(c);
+					//expectedChange += sampleLMDeath(c);
 					break;
 
 				case 2:
@@ -889,11 +899,11 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 				expectedChange += sampleDA(c);
 				//
 			}
-			if (iteration_ % config.birthDeathNumIter_ == 0) {
-				if ((iteration_ / config.birthDeathNumIter_) % 3 ==2) {
-					expectedChange += mergeLM(c);
-				}
-			}
+			// if (iteration_ % config.birthDeathNumIter_ == 0) {
+			// 	if ((iteration_ / config.birthDeathNumIter_) % 3 ==2) {
+			// 		expectedChange += mergeLM(c);
+			// 	}
+			// }
 
 		}
 			//expectedChange += sampleLMDeath(c);
