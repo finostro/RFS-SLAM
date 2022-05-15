@@ -614,6 +614,14 @@ void VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c)
 
 	for (int k = max_detection_time+1 ; k < maxpose_; k++)
 	{
+
+		updateGraph(c);
+		c.poses_[0]->setFixed(true);
+		c.optimizer_->initializeOptimization();
+		c.optimizer_->computeInitialGuess();
+		c.optimizer_->setVerbose(false);
+		c.optimizer_->optimize(ni);
+		calculateWeight(c);
 		updateDAProbs(c, k, k+1);
 		
 		AssociationProbabilities probs;
