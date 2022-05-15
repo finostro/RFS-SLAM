@@ -620,7 +620,7 @@ void VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c)
 		c.optimizer_->initializeOptimization();
 		c.optimizer_->computeInitialGuess();
 		c.optimizer_->setVerbose(false);
-		c.optimizer_->optimize(ni);
+		c.optimizer_->optimize(30);
 		calculateWeight(c);
 		updateDAProbs(c, k, k+1);
 		
