@@ -586,9 +586,9 @@ inline void VectorGLMBSLAM2D::run(int numSteps) {
 		if (maxpose_ > components_[0].poses_.size())
 			maxpose_ = components_[0].poses_.size();
 
-		// if (best_DA_max_detection_time_ + 20 < maxpose_ ){
-		//  	maxpose_ = best_DA_max_detection_time_ + 20 ;
-		//  }
+		if (best_DA_max_detection_time_ + 20 < maxpose_ ){
+		 	maxpose_ = best_DA_max_detection_time_ + 20 ;
+		 }
 		minpose_ = std::max(0,std::min(maxpose_-config.numPosesToOptimize_ , best_DA_max_detection_time_) );
 		//minpose_ = 0;
 		std::cout << "maxpose: " << maxpose_ << " max det:  " << best_DA_max_detection_time_<< "  "<< maxpose_prev_ <<"\n";
