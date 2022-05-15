@@ -802,7 +802,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 				updateFoV(c);
 				//std::cout << "fov update: \n";
 
-				updateDAProbs(c , min_pose_ , max_pose_);
+				updateDAProbs(c , minpose_ , maxpose_);
 				//std::cout << "da update: \n";
 				c.prevDA_bimap_ = c.DA_bimap_;
 				c.prevlandmarks_numDetections_ = c.landmarks_numDetections_;
@@ -863,7 +863,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 
 		updateFoV(c);
 		if (!c.reverted_ )
-			updateDAProbs(c, min_pose_, maxpose_);
+			updateDAProbs(c, minpose_, maxpose_);
 		for (int p=0 ; p< maxpose_; p++){
 			c.prevDA_bimap_[p] = c.DA_bimap_[p];
 		}
