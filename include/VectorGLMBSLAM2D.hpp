@@ -259,7 +259,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 * Calculate the probability of each measurement being associated with a specific landmark
 	 * @param c the GLMB component
 	 */
-	void updateDAProbs(VectorGLMBComponent2D &c);
+	void updateDAProbs(VectorGLMBComponent2D &c, int minpose, int maxpose);
 
 	/**
 	 * Calculate the FoV at each time
@@ -607,13 +607,15 @@ void VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c)
 	{
 		out[i] = c.DA_bimap_[i];
 	}
-	int max_detection_time_ = maxpose_;
-	while(max_detection_time_ > 0 && c.DA_bimap_[max_detection_time_].size()==0){
-		max_detection_time_--;
+	int max_detection_time = maxpose_;
+	while(max_detection_time > 0 && c.DA_bimap_[max_detection_time].size()==0){
+		max_detection_time--;
 	}
 
-	for (int k = max_detection_time_+1 ; k < maxpose_; k++)
+	for (int k = max_detection_time+1 ; k < maxpose_; k++)
 	{
+		updateDAProbs(c, k, k+1);
+		
 		AssociationProbabilities probs;
 		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++)
 		{
@@ -697,7 +699,7 @@ void VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c)
 
 			if (newdai == -2)
 			{
-				std::cout << "false alarm\n";
+				//std::cout << "false alarm\n";
 			}
 			// std::cout << "ass\n";
 			if (newdai != selectedDA)
@@ -800,7 +802,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 				updateFoV(c);
 				//std::cout << "fov update: \n";
 
-				updateDAProbs(c);
+				updateDAProbs(c , min_pose_ , max_pose_);
 				//std::cout << "da update: \n";
 				c.prevDA_bimap_ = c.DA_bimap_;
 				c.prevlandmarks_numDetections_ = c.landmarks_numDetections_;
@@ -861,7 +863,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 
 		updateFoV(c);
 		if (!c.reverted_ )
-			updateDAProbs(c);
+			updateDAProbs(c, min_pose_, maxpose_);
 		for (int p=0 ; p< maxpose_; p++){
 			c.prevDA_bimap_[p] = c.DA_bimap_[p];
 		}
@@ -1513,14 +1515,14 @@ inline void VectorGLMBSLAM2D::updateFoV(VectorGLMBComponent2D &c) {
 	}
 }
 
-inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c) {
+inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c, int minpose, int maxpose) {
 
 	g2o::JacobianWorkspace jac_ws;
 	MeasurementEdge z;
 	jac_ws.updateSize(2, 2 * 3);
 	jac_ws.allocate();
 
-	for (int k = minpose_; k < maxpose_; k++) {
+	for (int k = minpose; k < maxpose; k++) {
 		c.DAProbs_[k].resize(c.Z_[k].size());
 
 		double posHLogDet;
