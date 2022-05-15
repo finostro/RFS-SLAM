@@ -607,7 +607,12 @@ void VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c)
 	{
 		out[i] = c.DA_bimap_[i];
 	}
-	for (int k = best_DA_max_detection_time_ ; k < maxpose_; k++)
+	max_detection_time_ = maxpose_;
+	while(max_detection_time_ > 0 && c.DA_bimap_[max_detection_time_].size()==0){
+		max_detection_time_--;
+	}
+
+	for (int k = max_detection_time_+1 ; k < maxpose_; k++)
 	{
 		AssociationProbabilities probs;
 		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++)
@@ -867,6 +872,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 
 		 {
 //do{
+			selectNN(c);
 			expectedChange += sampleDA(c);
 			/*
 			 std::cout << termcolor::magenta <<" =========== SexyTime!============\n" << termcolor::reset;
