@@ -583,15 +583,19 @@ inline void VectorGLMBSLAM2D::run(int numSteps) {
 	for (int i = 0; i < numSteps; i++) {
 		maxpose_prev_ = maxpose_;
 		maxpose_ = components_[0].poses_.size() * i / (numSteps*0.95);
+
+		if (best_DA_max_detection_time_ + config.numPosesToOptimize_ < maxpose_ ){
+		 	maxpose_ = best_DA_max_detection_time_ + config.numPosesToOptimize_;
+		 }
 		if (maxpose_ > components_[0].poses_.size())
 			maxpose_ = components_[0].poses_.size();
-
-		if (best_DA_max_detection_time_ + 20 < maxpose_ ){
-		 	maxpose_ = best_DA_max_detection_time_ + 20 ;
-		 }
-		minpose_ = std::max(0,std::min(maxpose_-config.numPosesToOptimize_ , best_DA_max_detection_time_) );
+		if(best_DA_max_detection_time_==components_[0].poses_.size()-1){
+			minpose_ = 0;
+		}else{
+			minpose_ = std::max(0,std::min(maxpose_-2*config.numPosesToOptimize_ , best_DA_max_detection_time_-config.numPosesToOptimize_) );
+		}
 		//minpose_ = 0;
-		std::cout << "maxpose: " << maxpose_ << " max det:  " << best_DA_max_detection_time_<< "  "<< maxpose_prev_ <<"\n";
+		std::cout << "maxpose: " << maxpose_ << " max det:  " << best_DA_max_detection_time_<< "  "<< minpose_ <<"\n";
 		std::cout << "iteration: " << iteration_ << " / " << numSteps<< "\n";
 		optimize(config.numLevenbergIterations_);
 
@@ -607,7 +611,7 @@ void VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c)
 	{
 		out[i] = c.DA_bimap_[i];
 	}
-	int max_detection_time = maxpose_;
+	int max_detection_time = maxpose_-1;
 	while(max_detection_time > 0 && c.DA_bimap_[max_detection_time].size()==0){
 		max_detection_time--;
 	}
@@ -970,7 +974,7 @@ inline void VectorGLMBSLAM2D::optimize(int ni) {
 				best_DA_ = c.DA_bimap_;
 				std::stringstream filename;
 
-				best_DA_max_detection_time_ = maxpose_;
+				best_DA_max_detection_time_ = std::max(maxpose_-1 , 0 );
 				while(best_DA_max_detection_time_ > 0 && best_DA_[best_DA_max_detection_time_].size()==0){
 					best_DA_max_detection_time_--;
 				}
