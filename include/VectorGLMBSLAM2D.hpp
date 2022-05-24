@@ -342,6 +342,15 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 */
 	static double distance(PoseType *pose, PointType *lm);
 
+	/**
+	 * @brief Calculate an angle from a pose to a landmark
+	 * 
+	 * @param pose A 2D pose
+	 * @param lm A 2D landmark
+	 * @return double angle in radians
+	 */
+	static double angle(const PoseType *pose, const PointType *lm);
+
 	int nThreads_; /**< Number of threads  */
 
 	VectorGLMBComponent2D gt_graph;
@@ -559,6 +568,21 @@ double VectorGLMBSLAM2D::distance(PoseType *pose, PointType *lm) {
 
 }
 
+double VectorGLMBSLAM2D::angle(const PoseType *pose, const PointType *lm){
+	Eigen::Vector3d posemean;
+	pose->getEstimateData(posemean.data());
+	Eigen::Vector2d pointmean;
+	lm->getEstimateData(pointmean.data());
+    double bearing=atan2(pointmean[1]-posemean[1] , pointmean[0]-posemean[0])-posemean[2];
+	bearing= fmod(bearing + M_PI,2*M_PI);
+	if (bearing <0){
+		bearing+= 2*M_PI;
+	}
+	bearing-=M_PI;
+
+	return bearing;
+
+}
 inline void VectorGLMBSLAM2D::initComponents() {
 	components_.resize(config.numComponents_);
 	gt_graph.optimizer_->computeInitialGuess();
@@ -1519,8 +1543,11 @@ inline void VectorGLMBSLAM2D::updateFoV(VectorGLMBComponent2D &c) {
 			for (int lm = 0; lm < c.landmarks_.size(); lm++) {
 				if (distance(c.poses_[k], c.landmarks_[lm])
 						<= config.maxRange_) {
-					c.fov_[k].push_back(c.landmarks_[lm]->id());
-					c.landmarks_numFoV_[lm]++;
+					double bearing = angle(c.poses_[k], c.landmarks_[lm]);
+					if (abs(bearing) < 0.75 *M_PI){
+						c.fov_[k].push_back(c.landmarks_[lm]->id());
+						c.landmarks_numFoV_[lm]++;
+					}
 				}
 			}
 		}
