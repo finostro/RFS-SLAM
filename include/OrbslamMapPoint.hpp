@@ -35,27 +35,49 @@
 
 
 #include "g2o/types/sba/types_six_dof_expmap.h" // se3 poses
+#include <opencv2/core/core.hpp>
+#include "OrbslamPose.hpp"
 
-
-namespace rfs{
-
-class OrbslamMapPoint
+namespace rfs
 {
 
+    class OrbslamMapPoint
+    {
 
-public:
-	typedef g2o::VertexPointXY PointType;
-    int numDetections_ ;
-    int numFoV_ ;
-    double landmarkInitProb_;
-    std::vector<bool> is_in_fov_;
+    public:
+	    typedef g2o::VertexSBAPointXYZ PointType;
+        int numDetections_;
+        int numFoV_;
+        double landmarkInitProb_;
+        std::vector<int> is_in_fov_;
+
+        // Mean viewing direction
+        Eigen::Vector3f mNormalVector;
+
+        // Best descriptor to fast matching
+        cv::Mat mDescriptor;
+
+        // Scale invariance distances
+        float mfMinDistance;
+        float mfMaxDistance;
+
+        // Keyframes observing the point and associated index in keyframe
+        std::map<int , std::tuple<int, int>> mObservations;
+
+        int predictScale(double dist, OrbslamPose *pPose)
+        {
+            double ratio = mfMaxDistance/dist; 
+            int nScale = ceil(log(ratio)/pPose->mfLogScaleFactor);
+            if(nScale<0)
+                nScale = 0;
+            else if(nScale>=pPose->mnScaleLevels)
+                nScale = pPose->mnScaleLevels-1;
+
+            return nScale;
+
+        }
 
 
 
 
-    MapPoint();
-
-
-}
-
-
+    }

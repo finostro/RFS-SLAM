@@ -11,7 +11,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.20)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-#set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+
 
 
 
@@ -160,6 +160,17 @@ FIND_PACKAGE(CSparse REQUIRED)
 FIND_PACKAGE(yaml-cpp REQUIRED)
 
 
+#  Opencv
+find_package(OpenCV 4.4)
+if(NOT OpenCV_FOUND)
+   message(FATAL_ERROR "OpenCV > 4.4 not found.")
+endif()
+
+MESSAGE("OPENCV VERSION:")
+MESSAGE(${OpenCV_VERSION})
+
+
+
 
 # VTK visualization
 find_package(VTK REQUIRED 	COMPONENTS 
@@ -286,6 +297,12 @@ TARGET_LINK_LIBRARIES(rfsceresslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRA
 
 ADD_EXECUTABLE(vglmbslam2d src/vglmbslam2d.cpp)
 TARGET_LINK_LIBRARIES(vglmbslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} )
+
+ADD_EXECUTABLE(vglmbslam6d src/vglmbslam6d_euroc.cpp  src/external/ORBextractor.cc)
+TARGET_LINK_LIBRARIES(vglmbslam6d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} 
+${OpenCV_LIBS} )
+
+
 
 ADD_EXECUTABLE(nng2oslam2d src/nng2osolver.cpp)
 TARGET_LINK_LIBRARIES(nng2oslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES} )
