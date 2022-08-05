@@ -236,7 +236,7 @@ ENDIF()
 INCLUDE_DIRECTORIES(${G2O_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${CSPARSE_INCLUDE_DIR})
 INCLUDE_DIRECTORIES(${VTK_INCLUDE_DIRS})
-#LINK_DIRECTORIES()
+INCLUDE_DIRECTORIES(${OPENCV_INCLUDE_DIRS})
 
 ADD_LIBRARY(rfsslam 
   src/TimeStamp.cpp 
@@ -264,10 +264,12 @@ ADD_LIBRARY(rfsslam
   src/misc/memProfile.cpp
   src/GaussianGenerators.cpp
   src/AssociationSampler.cpp
+  src/OrbslamMapPoint.cpp
+  src/OrbslamPose.cpp
   )
   
   
-TARGET_LINK_LIBRARIES(rfsslam   ${Boost_LIBRARIES}  ${VTK_LIBRARIES})
+TARGET_LINK_LIBRARIES(rfsslam   ${Boost_LIBRARIES}  ${VTK_LIBRARIES} ${OpenCV_LIBS} )
 
 ADD_EXECUTABLE(rbphdslam2dSim src/rbphdslam2dSim.cpp)
 TARGET_LINK_LIBRARIES(rbphdslam2dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})

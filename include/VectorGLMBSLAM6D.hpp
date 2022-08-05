@@ -45,8 +45,8 @@
 #include <math.h>
 #include "GaussianGenerators.hpp"
 #include "AssociationSampler.hpp"
-#include "OrbslamMapPoint.h"
-#include "OrbslamPose.h"
+#include "OrbslamMapPoint.hpp"
+#include "OrbslamPose.hpp"
 
 #include "g2o/core/block_solver.h"
 #include "g2o/core/optimization_algorithm_levenberg.h"
@@ -66,6 +66,8 @@
 
 #include "misc/EigenYamlSerialization.hpp"
 #include <misc/termcolor.hpp>
+
+#include<opencv2/core/core.hpp>
 
 #ifdef _PERFTOOLS_CPU
 #include <gperftools/profiler.h>
@@ -100,14 +102,12 @@ struct AssociationProbabilities {
  * Struct to store a single component of a VGLMB , with its own g2o optimizer
  */
 struct VectorGLMBComponent6D {
-public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	typedef g2o::VertexSBAPointXYZ PointType;
 	typedef g2o::VertexSE3Expmap PoseType;
 	typedef g2o::EdgeProjectXYZ2UV MonocularMeasurementEdge;
 	typedef g2o::EdgeProjectXYZ2UVU StereoMeasurementEdge;
 
 
-	typedef g2o::EdgeXYZPrior PointAnchorEdge;
 
 	typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1> > SlamBlockSolver;
 	typedef g2o::LinearSolverCSparse<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
@@ -142,14 +142,11 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
  *  \author  Felipe Inostroza
  */
 class VectorGLMBSLAM6D {
-public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
 	typedef g2o::VertexSBAPointXYZ PointType;
 	typedef g2o::VertexSE3Expmap PoseType;
-	typedef g2o::EdgeSE2 OdometryEdge;
 	typedef g2o::EdgeProjectXYZ2UV MonocularMeasurementEdge;
 	typedef g2o::EdgeProjectXYZ2UVU StereoMeasurementEdge;
-	typedef g2o::EdgeXYZPrior PointAnchorEdge;
+
 	typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1> > SlamBlockSolver;
 	typedef g2o::LinearSolverCSparse<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
 	/**
@@ -207,12 +204,6 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	/** Destructor */
 	~VectorGLMBSLAM6D();
 
-	/**
-	 *  Load a g2o style file , store groundtruth data association.
-	 * @param filename g2o file name
-	 */
-	void
-	load(std::string filename);
 
 	/**
 	 *  Load a yaml style config file
@@ -414,11 +405,11 @@ void VectorGLMBSLAM6D::changeDA(VectorGLMBComponent6D &c,
 	for (auto &bimap : da) {
 		for (auto it = bimap.begin(), it_end = bimap.end(); it != it_end;
 				it++) {
-			c.landmarks_[it->right - c.landmarks_[0]->id()].numDetections_++;
+			c.landmarks_[it->right - c.landmarks_[0].point.id()].numDetections_++;
 		}
 	}
 	updateGraph(c);
-	c.poses_[0]->setFixed(true);
+	c.poses_[0].pose.setFixed(true);
 	c.optimizer_->initializeOptimization();
 	//c.optimizer_->computeInitialGuess();
 	c.optimizer_->setVerbose(false);
@@ -474,67 +465,7 @@ void VectorGLMBSLAM6D::sampleComponents() {
 
 }
 
-void VectorGLMBSLAM6D::load(std::string filename) {
-	std::ifstream ifs(filename, std::ifstream::in);
 
-	gt_graph.optimizer_->load(ifs);
-
-	ifs.close();
-
-	gt_graph.numPoses_ = 0;
-	gt_graph.numPoints_ = 0;
-	//Copy Vertices from optimizer with data association
-	int maxid = 0;
-	for (auto pair : gt_graph.optimizer_->vertices()) {
-		g2o::HyperGraph::Vertex *v = pair.second;
-		PoseType *pose = dynamic_cast<PoseType*>(v);
-		if (pose != NULL) {
-
-			gt_graph.poses_.push_back(pose);
-			gt_graph.numPoses_++;
-
-			if (maxid < pose->id()) {
-				maxid = pose->id();
-			}
-		}
-		//sort by id
-
-		PointType *point = dynamic_cast<PointType*>(v);
-		if (point != NULL) {
-
-			gt_graph.landmarks_.push_back(point);
-			gt_graph.numPoints_++;
-		}
-
-	}
-	std::sort(gt_graph.poses_.begin(), gt_graph.poses_.end(),
-			[](const auto &lhs, const auto &rhs) {
-				return lhs->id() < rhs->id();
-			});
-	std::sort(gt_graph.landmarks_.begin(), gt_graph.landmarks_.end(),
-			[](const auto &lhs, const auto &rhs) {
-				return lhs->id() < rhs->id();
-			});
-
-	gt_graph.DA_bimap_.resize(gt_graph.numPoses_);
-
-	for (g2o::HyperGraph::Edge *e : gt_graph.optimizer_->edges()) {
-
-		MeasurementEdge *z = dynamic_cast<MeasurementEdge*>(e);
-		if (z != NULL) {
-			int firstvertex = z->vertex(0)->id();
-			gt_graph.poses_[firstvertex - gt_graph.poses_[0]->id()].Z_.push_back(z);
-			gt_graph.poses_[firstvertex - gt_graph.poses_[0]->id()].fov_.push_back(
-					z->vertex(1)->id());
-		}
-
-	}
-
-	gt_graph.poses_[0]->setFixed(true);
-	gt_graph.optimizer_->initializeOptimization();
-	gt_graph.optimizer_->optimize(10);
-
-}
 
 
 void VectorGLMBSLAM6D::loadEuroc(){
@@ -544,7 +475,7 @@ void VectorGLMBSLAM6D::loadEuroc(){
 //Loading image filenames and timestamps
     std::ifstream fTimes;
     fTimes.open(config.eurocTimestampsFilename_.c_str());
-    vTimeStamps.reserve(5000);
+    vTimestampsCam.reserve(5000);
     vstrImageLeft.reserve(5000);
     vstrImageRight.reserve(5000);
     while(!fTimes.eof())
@@ -560,78 +491,44 @@ void VectorGLMBSLAM6D::loadEuroc(){
             vstrImageRight.push_back(pathCam1 + "/" + ss.str() + ".png");
             double t;
             ss >> t;
-            vTimeStamps.push_back(t/1e9);
+            vTimestampsCam.push_back(t/1e9);
 
         }
     }
 	nImages = vstrImageLeft.size();
 
 	cv::Mat imLeft, imRight;
-    for (seq = 0; seq<num_seq; seq++)
-    {
 
-        // Seq loop
-        double t_resize = 0;
-        double t_rect = 0;
-        double t_track = 0;
-        int num_rect = 0;
-		
-        for(int ni=0; ni<nImages; ni++)
-        {
-            // Read left and right images from file
-            imLeft = cv::imread(vstrImageLeft[seq][ni],cv::IMREAD_UNCHANGED); //,cv::IMREAD_UNCHANGED);
-            imRight = cv::imread(vstrImageRight[seq][ni],cv::IMREAD_UNCHANGED); //,cv::IMREAD_UNCHANGED);
+	// Seq loop
+	double t_resize = 0;
+	double t_rect = 0;
+	double t_track = 0;
+	int num_rect = 0;
 
-            if(imLeft.empty())
-            {
-                cerr << endl << "Failed to load image at: "
-                     << string(vstrImageLeft[seq][ni]) << endl;
-                return 1;
-            }
+	for (int ni = 0; ni < nImages; ni++) {
+		// Read left and right images from file
+		imLeft = cv::imread(vstrImageLeft[ni], cv::IMREAD_UNCHANGED); //,cv::IMREAD_UNCHANGED);
+		imRight = cv::imread(vstrImageRight[ni], cv::IMREAD_UNCHANGED); //,cv::IMREAD_UNCHANGED);
 
-            if(imRight.empty())
-            {
-                cerr << endl << "Failed to load image at: "
-                     << string(vstrImageRight[seq][ni]) << endl;
-                return 1;
-            }
+		if (imLeft.empty()) {
+			std::cerr << std::endl << "Failed to load image at: "
+					<< std::string(vstrImageLeft[ni]) << std::endl;
+			return 1;
+		}
 
-            double tframe = vTimestampsCam[seq][ni];
+		if (imRight.empty()) {
+			std::cerr << std::endl << "Failed to load image at: "
+					<< std::string(vstrImageRight[ni]) << std::endl;
+			return 1;
+		}
 
-    #ifdef COMPILEDWITHC11
-            std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-    #else
-            std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
-    #endif
+		double tframe = vTimestampsCam[ni];
 
-            // Pass the images to the SLAM system
-            SLAM.TrackStereo(imLeft,imRight,tframe, vector<ORB_SLAM3::IMU::Point>(), vstrImageLeft[seq][ni]);
+		// Pass the images to the SLAM system
+		SLAM.TrackStereo(imLeft, imRight, tframe,
+				vector<ORB_SLAM3::IMU::Point>(), vstrImageLeft[seq][ni]);
 
-    #ifdef COMPILEDWITHC11
-            std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
-    #else
-            std::chrono::monotonic_clock::time_point t2 = std::chrono::monotonic_clock::now();
-    #endif
-
-#ifdef REGISTER_TIMES
-            t_track = t_resize + t_rect + std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(t2 - t1).count();
-            SLAM.InsertTrackTime(t_track);
-#endif
-
-            double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
-
-            vTimesTrack[ni]=ttrack;
-
-            // Wait to load the next frame
-            double T=0;
-            if(ni<nImages[seq]-1)
-                T = vTimestampsCam[seq][ni+1]-tframe;
-            else if(ni>0)
-                T = tframe-vTimestampsCam[seq][ni-1];
-
-            if(ttrack<T)
-                usleep((T-ttrack)*1e6); // 1e6
-        }
+	}
 
 
 }

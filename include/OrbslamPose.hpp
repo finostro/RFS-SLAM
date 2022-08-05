@@ -32,9 +32,11 @@
 
 #include "g2o/types/sba/types_six_dof_expmap.h" // se3 poses
 #include <opencv2/core/core.hpp>
+#include <vector>
 
 namespace rfs
 {
+ class OrbslamMapPoint;
 
     class OrbslamPose
     {
@@ -45,7 +47,7 @@ namespace rfs
         typedef g2o::EdgeProjectXYZ2UV MonocularMeasurementEdge;
         typedef g2o::EdgeProjectXYZ2UVU StereoMeasurementEdge;
 
-        PoseType pose;
+        PoseType *pPose;
 
         // Scale
         const int mnScaleLevels;
@@ -74,52 +76,7 @@ namespace rfs
          * @return true  point is in field of view
          * @return false point should not be measured
          */
-        bool isInFrustum(PointType *pMP, float viewingCosLimit, g2o::CameraParameters *cam_params)
-        {
-
-            auto point_in_camera_frame = pose.estimate().map(pMP->estimate());
-
-            // check depth
-            if (point_in_camera_frame(2) <= 0)
-            {
-                return false;
-            }
-            Eigen::Vector3d uvu = cam_params->stereocam_uvu_map(point_in_camera_frame);
-
-            // check image bounds
-            if (uvu(0) < mnMinX || uvu(0) > mnMaxX)
-            {
-                return false;
-            }
-
-            if (uvu(1) < mnMinY || uvu(1) > mnMaxY)
-            {
-                return false;
-            }
-
-            if (uvu(2) < mnMinX || uvu(2) > mnMaxX)
-            {
-                return false;
-            }
-
-            // Check distance is in the scale invariance region of the MapPoint
-            const float maxDistance = pMP->mfMinDistance;
-            const float minDistance = pMP->mfMinDistance;
-            const float dist = point_in_camera_frame.norm();
-
-            if (dist < minDistance || dist > maxDistance)
-                return false;
-
-            // Check viewing angle
-            Eigen::Vector3f Pn = pMP->mNormalVector;
-            const float viewCos = PO.dot(Pn) / dist;
-
-            if (viewCos < viewingCosLimit)
-                return false;
-
-            // Predict scale in the image
-            const int nPredictedLevel = pMP->PredictScale(dist, this);
-        }
-    }
+        bool isInFrustum(OrbslamMapPoint *pMP, float viewingCosLimit, g2o::CameraParameters *cam_params);
+    };
 
 }

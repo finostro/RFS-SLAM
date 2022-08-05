@@ -4,10 +4,10 @@
 
 int main(int argc, char* argv[]){
 
-   rfs::VectorGLMBSLAM2D vglmb;
+   rfs::VectorGLMBSLAM6D vglmb;
 
 
-  std::string cfgFileName, euroc_folder, euroc_timestamps_filename;
+  std::string cfgFileName;
   boost::program_options::options_description desc("Options");
   desc.add_options()
     ("help,h", "produce this help message")

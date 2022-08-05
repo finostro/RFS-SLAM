@@ -28,47 +28,60 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
-
-
-#pragma once
-
-
-#include "g2o/types/sba/types_six_dof_expmap.h" // se3 poses
-#include <opencv2/core/core.hpp>
+#include "OrbslamPose.hpp"
+#include "OrbslamMapPoint.hpp"
 
 namespace rfs
 {
-	class OrbslamPose;
-
-    class OrbslamMapPoint
-    {
-
-    public:
-	    g2o::VertexSBAPointXYZ *pPoint;
-        int numDetections_;
-        int numFoV_;
-        double landmarkInitProb_;
-        std::vector<int> is_in_fov_;
-
-        // Mean viewing direction
-        Eigen::Vector3d mNormalVector;
-
-        // Best descriptor to fast matching
-        cv::Mat mDescriptor;
-
-        // Scale invariance distances
-        float mfMinDistance;
-        float mfMaxDistance;
-
-        // Keyframes observing the point and associated index in keyframe
-        std::map<int , std::tuple<int, int>> mObservations;
-
-        int predictScale(double dist, OrbslamPose *pPose);
 
 
+        bool OrbslamPose::isInFrustum(OrbslamMapPoint *pMP, float viewingCosLimit, g2o::CameraParameters *cam_params)
+        {
 
+        	Eigen::Vector3d  point_in_camera_frame = pPose->estimate().map(pMP->pPoint->estimate());
 
-    };
+            // check depth
+            if (point_in_camera_frame(2) <= 0)
+            {
+                return false;
+            }
+            Eigen::Vector3d uvu = cam_params->stereocam_uvu_map(point_in_camera_frame);
+
+            // check image bounds
+            if (uvu(0) < mnMinX || uvu(0) > mnMaxX)
+            {
+                return false;
+            }
+
+            if (uvu(1) < mnMinY || uvu(1) > mnMaxY)
+            {
+                return false;
+            }
+
+            if (uvu(2) < mnMinX || uvu(2) > mnMaxX)
+            {
+                return false;
+            }
+
+            // Check distance is in the scale invariance region of the MapPoint
+            const float maxDistance = pMP->mfMinDistance;
+            const float minDistance = pMP->mfMinDistance;
+            const float dist = point_in_camera_frame.norm();
+
+            if (dist < minDistance || dist > maxDistance)
+                return false;
+
+            // Check viewing angle
+            Eigen::Vector3d Pn = pMP->mNormalVector;
+            const float viewCos = point_in_camera_frame.dot(Pn) / dist;
+
+            if (viewCos < viewingCosLimit)
+                return false;
+
+            // Predict scale in the image
+            const int nPredictedLevel = pMP->predictScale(dist, this);
+            return true;
+        }
+
 
 }
