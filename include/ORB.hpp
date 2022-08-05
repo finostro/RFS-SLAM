@@ -31,8 +31,7 @@
 
 
 
-#ifndef ORB_HPP
-#define ORB_HPP
+#pragma once
 
 
 #include <iostream>
@@ -88,4 +87,3 @@ namespace rfs{
 
 
 
-#endif
