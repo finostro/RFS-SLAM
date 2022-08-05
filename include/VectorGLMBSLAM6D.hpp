@@ -99,7 +99,7 @@ struct AssociationProbabilities {
 /**
  * Struct to store a single component of a VGLMB , with its own g2o optimizer
  */
-struct VectorGLMBComponent2D {
+struct VectorGLMBComponent6D {
 public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	typedef g2o::VertexSBAPointXYZ PointType;
 	typedef g2o::VertexSE3Expmap PoseType;
@@ -123,7 +123,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	std::vector<std::vector<AssociationProbabilities> > DAProbs_; /**< DAProbs_ [k][nz] are is the association probabilities of measurement
 	 nz at time k, used for switching using gibbs sampling*/
 
-	std::vector<OrbslamPoses> poses_;
+	std::vector<OrbslamPose> poses_;
 	std::vector<OrbslamMapPoint> landmarks_;
 	std::vector<double> landmarksResetProb_, landmarksInitProb_;
 
@@ -135,13 +135,13 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
 /**
- *  \class VectorGLMBSLAM2D
+ *  \class VectorGLMBSLAM6D
  *  \brief Random Finite Set  optimization using ceres solver for  feature based SLAM
  *
  *
  *  \author  Felipe Inostroza
  */
-class VectorGLMBSLAM2D {
+class VectorGLMBSLAM6D {
 public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	typedef g2o::VertexSBAPointXYZ PointType;
@@ -187,12 +187,14 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 		int numIterations_; /**< number of iterations of main algorithm */
 		double initTemp_;
 		double tempFactor_;
-		Eigen::Matrix2d anchorInfo_; /** information for anchor edges, should be low*/
+		Eigen::Matrix3d anchorInfo_; /** information for anchor edges, should be low*/
 
 		std::string finalStateFile_;
 
 
   		g2o::CameraParameters * cam_params;
+
+		std::string eurocFolder_, eurocTimestampsFilename_;
 
 
 	} config;
@@ -200,10 +202,10 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	/**
 	 * Constructor
 	 */
-	VectorGLMBSLAM2D();
+	VectorGLMBSLAM6D();
 
 	/** Destructor */
-	~VectorGLMBSLAM2D();
+	~VectorGLMBSLAM6D();
 
 	/**
 	 *  Load a g2o style file , store groundtruth data association.
@@ -218,6 +220,14 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 */
 	void
 	loadConfig(std::string filename);
+
+	/**
+	 *  Load imaged from an euroc dataset , folder set in config file
+	 * 
+	 */
+	void
+	loadEuroc();
+
 
 	/**
 	 * initialize the components , set the initial data associations to all false alarms
@@ -241,7 +251,7 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 * Select nearest neighbor at the last included time step (maxpose_)
 	 * @param c the GLMB component
 	 */
-	void  selectNN(VectorGLMBComponent2D &c);
+	void  selectNN(VectorGLMBComponent6D &c);
 	/**
 	 * Sample n data associations from the already visited group, in order to perform gibbs sampler on each.
 	 * @param ni number of iterations of the optimizer
@@ -252,59 +262,59 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 * Use the data association stored in DA_ to create the graph.
 	 * @param c the GLMB component
 	 */
-	void constructGraph(VectorGLMBComponent2D &c);
+	void constructGraph(VectorGLMBComponent6D &c);
 	/**
 	 *
 	 * Initialize a VGLMB component , setting the data association to all false alarms
 	 * @param c the GLMB component
 	 */
-	void init(VectorGLMBComponent2D &c);
+	void init(VectorGLMBComponent6D &c);
 
 	/**
 	 * Calculate the probability of each measurement being associated with a specific landmark
 	 * @param c the GLMB component
 	 */
-	void updateDAProbs(VectorGLMBComponent2D &c, int minpose, int maxpose);
+	void updateDAProbs(VectorGLMBComponent6D &c, int minpose, int maxpose);
 
 	/**
 	 * Calculate the FoV at each time
 	 * @param c the GLMB component
 	 */
-	void updateFoV(VectorGLMBComponent2D &c);
+	void updateFoV(VectorGLMBComponent6D &c);
 
 	/**
 	 * Use the probabilities calculated using updateDAProbs to sample a new data association through gibbs sampling
 	 * @param c the GLMB component
 	 */
-	double sampleDA(VectorGLMBComponent2D &c);
+	double sampleDA(VectorGLMBComponent6D &c);
 
 	/**
 	 * Merge two data associations into a third one, by selecting a random merge time.
 	 */
-	std::vector<boost::bimap<int, int, boost::container::allocator<int>> > sexyTime(VectorGLMBComponent2D &c1, VectorGLMBComponent2D &c2);
+	std::vector<boost::bimap<int, int, boost::container::allocator<int>> > sexyTime(VectorGLMBComponent6D &c1, VectorGLMBComponent6D &c2);
 
 	/**
 	 * Use the probabilities calculated in sampleDA to reset all the detections of a single landmark to all false alarms.
 	 * @param c the GLMB component
 	 */
-	double sampleLMDeath(VectorGLMBComponent2D &c);
+	double sampleLMDeath(VectorGLMBComponent6D &c);
 
 	/**
 	 * Randomly merge landmarks in order to improve the sampling algorithm
 	 * @param c the GLMB component
 	 */
-	double mergeLM(VectorGLMBComponent2D &c);
+	double mergeLM(VectorGLMBComponent6D &c);
 
 	/**
 	 * Use the probabilities calculated in sampleDA to initialize landmarks from  false alarms.
 	 * @param c the GLMB component
 	 */
-	double sampleLMBirth(VectorGLMBComponent2D &c);
+	double sampleLMBirth(VectorGLMBComponent6D &c);
 
 	/**
 	 * Change the data association in component c to the one stored on da.
 	 */
-	void changeDA(VectorGLMBComponent2D &c,
+	void changeDA(VectorGLMBComponent6D &c,
 			const std::vector<boost::bimap<int, int, boost::container::allocator<int>> > &da);
 
 
@@ -313,27 +323,27 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	 * print the data association in component c
 	 * @param c the GLMB component
 	 */
-	void printDA(VectorGLMBComponent2D &c, std::ostream &s = std::cout);
+	void printDA(VectorGLMBComponent6D &c, std::ostream &s = std::cout);
 	/**
 	 * print the data association in component c
 	 * @param c the GLMB component
 	 */
-	void printDAProbs(VectorGLMBComponent2D &c);
+	void printDAProbs(VectorGLMBComponent6D &c);
 	/**
 	 * print the data association in component c
 	 * @param c the GLMB component
 	 */
-	void printFoV(VectorGLMBComponent2D &c);
+	void printFoV(VectorGLMBComponent6D &c);
 	/**
 	 * Use the data association hipothesis and the optimized state to calculate the component weight.
 	 * @param c the GLMB component
 	 */
-	void calculateWeight(VectorGLMBComponent2D &c);
+	void calculateWeight(VectorGLMBComponent6D &c);
 	/**
 	 * Use the new sampled data association to update the g2o graph
 	 * @param c the GLMB component
 	 */
-	void updateGraph(VectorGLMBComponent2D &c);
+	void updateGraph(VectorGLMBComponent6D &c);
 
 	/**
 	 * Calculate the range between a pose and a landmark, to calculate the probability of detection.
@@ -347,9 +357,9 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 	int nThreads_; /**< Number of threads  */
 
-	VectorGLMBComponent2D gt_graph;
+	VectorGLMBComponent6D gt_graph;
 
-	std::vector<VectorGLMBComponent2D> components_; /**< VGLMB components */
+	std::vector<VectorGLMBComponent6D> components_; /**< VGLMB components */
 	double bestWeight_ = -std::numeric_limits<double>::infinity();
 	std::vector<boost::bimap<int, int, boost::container::allocator<int>> > best_DA_;
 	int best_DA_max_detection_time_ = 0; /**< last association time */
@@ -363,11 +373,23 @@ public:EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	int iterationBest_ = 0;
 	double insertionP_ = 0.5;
 
+
+    //euroc dataset
+
+    //filenames
+    std::vector<std::string>  vstrImageLeft;
+    std::vector<std::string>  vstrImageRight;
+	//timestamps
+
+	std::vector<double> vTimestampsCam;
+	int nImages;
+
+
 };
 
 //////////////////////////////// Implementation ////////////////////////
 
-VectorGLMBSLAM2D::VectorGLMBSLAM2D() {
+VectorGLMBSLAM6D::VectorGLMBSLAM6D() {
 	nThreads_ = 1;
 
 #ifdef _OPENMP
@@ -376,11 +398,11 @@ VectorGLMBSLAM2D::VectorGLMBSLAM2D() {
 
 }
 
-VectorGLMBSLAM2D::~VectorGLMBSLAM2D() {
+VectorGLMBSLAM6D::~VectorGLMBSLAM6D() {
 
 }
 
-void VectorGLMBSLAM2D::changeDA(VectorGLMBComponent2D &c,
+void VectorGLMBSLAM6D::changeDA(VectorGLMBComponent6D &c,
 		const std::vector<boost::bimap<int, int, boost::container::allocator<int>> > &da) {
 	// update bimaps!!!
 	c.DA_bimap_ = da;
@@ -403,7 +425,7 @@ void VectorGLMBSLAM2D::changeDA(VectorGLMBComponent2D &c,
 	c.optimizer_->optimize(config.numLevenbergIterations_);
 
 }
-void VectorGLMBSLAM2D::sampleComponents() {
+void VectorGLMBSLAM6D::sampleComponents() {
 
 	// do logsumexp on the components to calculate probabilities
 
@@ -452,7 +474,7 @@ void VectorGLMBSLAM2D::sampleComponents() {
 
 }
 
-void VectorGLMBSLAM2D::load(std::string filename) {
+void VectorGLMBSLAM6D::load(std::string filename) {
 	std::ifstream ifs(filename, std::ifstream::in);
 
 	gt_graph.optimizer_->load(ifs);
@@ -514,7 +536,107 @@ void VectorGLMBSLAM2D::load(std::string filename) {
 
 }
 
-void VectorGLMBSLAM2D::loadConfig(std::string filename) {
+
+void VectorGLMBSLAM6D::loadEuroc(){
+	std::string pathCam0 = config.eurocFolder_ + "/mav0/cam0/data";
+	std::string pathCam1 = config.eurocFolder_ + "/mav0/cam1/data";
+
+//Loading image filenames and timestamps
+    std::ifstream fTimes;
+    fTimes.open(config.eurocTimestampsFilename_.c_str());
+    vTimeStamps.reserve(5000);
+    vstrImageLeft.reserve(5000);
+    vstrImageRight.reserve(5000);
+    while(!fTimes.eof())
+    {
+	
+        std::string s;
+        std::getline(fTimes,s);
+        if(!s.empty())
+        {
+            std::stringstream ss;
+            ss << s;
+            vstrImageLeft.push_back(pathCam0 + "/" + ss.str() + ".png");
+            vstrImageRight.push_back(pathCam1 + "/" + ss.str() + ".png");
+            double t;
+            ss >> t;
+            vTimeStamps.push_back(t/1e9);
+
+        }
+    }
+	nImages = vstrImageLeft.size();
+
+	cv::Mat imLeft, imRight;
+    for (seq = 0; seq<num_seq; seq++)
+    {
+
+        // Seq loop
+        double t_resize = 0;
+        double t_rect = 0;
+        double t_track = 0;
+        int num_rect = 0;
+		
+        for(int ni=0; ni<nImages; ni++)
+        {
+            // Read left and right images from file
+            imLeft = cv::imread(vstrImageLeft[seq][ni],cv::IMREAD_UNCHANGED); //,cv::IMREAD_UNCHANGED);
+            imRight = cv::imread(vstrImageRight[seq][ni],cv::IMREAD_UNCHANGED); //,cv::IMREAD_UNCHANGED);
+
+            if(imLeft.empty())
+            {
+                cerr << endl << "Failed to load image at: "
+                     << string(vstrImageLeft[seq][ni]) << endl;
+                return 1;
+            }
+
+            if(imRight.empty())
+            {
+                cerr << endl << "Failed to load image at: "
+                     << string(vstrImageRight[seq][ni]) << endl;
+                return 1;
+            }
+
+            double tframe = vTimestampsCam[seq][ni];
+
+    #ifdef COMPILEDWITHC11
+            std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+    #else
+            std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
+    #endif
+
+            // Pass the images to the SLAM system
+            SLAM.TrackStereo(imLeft,imRight,tframe, vector<ORB_SLAM3::IMU::Point>(), vstrImageLeft[seq][ni]);
+
+    #ifdef COMPILEDWITHC11
+            std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
+    #else
+            std::chrono::monotonic_clock::time_point t2 = std::chrono::monotonic_clock::now();
+    #endif
+
+#ifdef REGISTER_TIMES
+            t_track = t_resize + t_rect + std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(t2 - t1).count();
+            SLAM.InsertTrackTime(t_track);
+#endif
+
+            double ttrack= std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
+
+            vTimesTrack[ni]=ttrack;
+
+            // Wait to load the next frame
+            double T=0;
+            if(ni<nImages[seq]-1)
+                T = vTimestampsCam[seq][ni+1]-tframe;
+            else if(ni>0)
+                T = tframe-vTimestampsCam[seq][ni-1];
+
+            if(ttrack<T)
+                usleep((T-ttrack)*1e6); // 1e6
+        }
+
+
+}
+
+void VectorGLMBSLAM6D::loadConfig(std::string filename) {
 
 	YAML::Node node = YAML::LoadFile(filename);
 
@@ -566,10 +688,12 @@ void VectorGLMBSLAM2D::loadConfig(std::string filename) {
   cam_params->setId(0);
 
 
+	config.eurocFolder_ = node["eurocFolder"].as<std::string>();
+	config.eurocTimestampsFilename_ = node["eurocTimestampsFilename"].as<std::string>();
 
 }
 
-double VectorGLMBSLAM2D::distance(PoseType *pose, PointType *lm) {
+double VectorGLMBSLAM6D::distance(PoseType *pose, PointType *lm) {
 
 
 	Eigen::Vector3d point_in_camera_frame = pose->estimate().map(lm->estimate())
@@ -577,7 +701,7 @@ double VectorGLMBSLAM2D::distance(PoseType *pose, PointType *lm) {
 
 }
 
-double VectorGLMBSLAM2D::angle(const PoseType *pose, const PointType *lm){
+double VectorGLMBSLAM6D::angle(const PoseType *pose, const PointType *lm){
 	Eigen::Vector3d posemean;
 	pose->getEstimateData(posemean.data());
 	Eigen::Vector2d pointmean;
@@ -592,7 +716,7 @@ double VectorGLMBSLAM2D::angle(const PoseType *pose, const PointType *lm){
 	return bearing;
 
 }
-inline void VectorGLMBSLAM2D::initComponents() {
+inline void VectorGLMBSLAM6D::initComponents() {
 	components_.resize(config.numComponents_);
 	gt_graph.optimizer_->computeInitialGuess();
 	gt_graph.optimizer_->save("inittraj.g2o");
@@ -610,7 +734,7 @@ inline void VectorGLMBSLAM2D::initComponents() {
 	}
 
 }
-inline void VectorGLMBSLAM2D::run(int numSteps) {
+inline void VectorGLMBSLAM6D::run(int numSteps) {
 
 
 	for (int i = 0; i < numSteps; i++) {
@@ -636,7 +760,7 @@ inline void VectorGLMBSLAM2D::run(int numSteps) {
 
 }
 
-void VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c)
+void VectorGLMBSLAM6D::selectNN(VectorGLMBComponent6D &c)
 {
 	std::vector<boost::bimap<int, int, boost::container::allocator<int>>> out;
 	out.resize(c.DA_bimap_.size());
@@ -774,8 +898,8 @@ void VectorGLMBSLAM2D::selectNN(VectorGLMBComponent2D &c)
 	}
 }
 
-std::vector<boost::bimap<int, int, boost::container::allocator<int>> > VectorGLMBSLAM2D::sexyTime(VectorGLMBComponent2D &c1,
-		VectorGLMBComponent2D &c2) {
+std::vector<boost::bimap<int, int, boost::container::allocator<int>> > VectorGLMBSLAM6D::sexyTime(VectorGLMBComponent6D &c1,
+		VectorGLMBComponent6D &c2) {
 
 
 	int threadnum = 0;
@@ -813,7 +937,7 @@ if (maxpose_== 0){
 	}
 	return out;
 }
-inline void VectorGLMBSLAM2D::optimize(int ni) {
+inline void VectorGLMBSLAM6D::optimize(int ni) {
 
 		std::cout << "visited  " << visited_.size() << "\n" ;
 	if (visited_.size() > 0) {
@@ -1052,7 +1176,7 @@ std::cout << "insertionp: " << insertionP_ << " temp: " << temp_ << "\n";
 
 
 }
-inline void VectorGLMBSLAM2D::calculateWeight(VectorGLMBComponent2D &c) {
+inline void VectorGLMBSLAM6D::calculateWeight(VectorGLMBComponent6D &c) {
 	double logw = 0;
 
 	for (int k = 0; k < c.poses_.size(); k++) {
@@ -1101,7 +1225,7 @@ inline void VectorGLMBSLAM2D::calculateWeight(VectorGLMBComponent2D &c) {
 	c.logweight_ = logw;
 }
 
-inline void VectorGLMBSLAM2D::updateGraph(VectorGLMBComponent2D &c) {
+inline void VectorGLMBSLAM6D::updateGraph(VectorGLMBComponent6D &c) {
 	for (int k = 0; k < maxpose_; k++) {
 		for (int nz = 0; nz < c.DAProbs_[k].size(); nz++) {
 			int selectedDA = -2;
@@ -1162,7 +1286,7 @@ void print_map(const MapType &m, std::ostream &s = std::cout) {
 		s << iter->first << "-->" << iter->second << std::endl;
 	}
 }
-inline void VectorGLMBSLAM2D::printFoV(VectorGLMBComponent2D &c) {
+inline void VectorGLMBSLAM6D::printFoV(VectorGLMBComponent6D &c) {
 	std::cout << "FoV:\n";
 	for (int k = 0; k < c.poses_.size(); k++) {
 		std::cout << k << "  FoV at:   ";
@@ -1172,7 +1296,7 @@ inline void VectorGLMBSLAM2D::printFoV(VectorGLMBComponent2D &c) {
 		std::cout << "\n";
 	}
 }
-inline void VectorGLMBSLAM2D::printDAProbs(VectorGLMBComponent2D &c) {
+inline void VectorGLMBSLAM6D::printDAProbs(VectorGLMBComponent6D &c) {
 	for (int k = 0; k < c.DAProbs_.size(); k++) {
 		if (k == 2)
 			break;
@@ -1187,7 +1311,7 @@ inline void VectorGLMBSLAM2D::printDAProbs(VectorGLMBComponent2D &c) {
 		std::cout << "\n";
 	}
 }
-inline void VectorGLMBSLAM2D::printDA(VectorGLMBComponent2D &c,
+inline void VectorGLMBSLAM6D::printDA(VectorGLMBComponent6D &c,
 		std::ostream &s) {
 	for (int k = 0; k < c.DA_bimap_.size(); k++) {
 		s << k << ":\n";
@@ -1195,7 +1319,7 @@ inline void VectorGLMBSLAM2D::printDA(VectorGLMBComponent2D &c,
 	}
 }
 
-inline double VectorGLMBSLAM2D::sampleLMBirth(VectorGLMBComponent2D &c) {
+inline double VectorGLMBSLAM6D::sampleLMBirth(VectorGLMBComponent6D &c) {
 	double expectedWeightChange = 0;
 	boost::uniform_real<> uni_dist(0, 1);
 	int threadnum = 0;
@@ -1262,7 +1386,7 @@ threadnum = omp_get_thread_num();
 	return expectedWeightChange;
 }
 
-inline double VectorGLMBSLAM2D::mergeLM(VectorGLMBComponent2D &c) {
+inline double VectorGLMBSLAM6D::mergeLM(VectorGLMBComponent6D &c) {
 	double expectedWeightChange = 0;
 	int threadnum = 0;
 #ifdef _OPENMP
@@ -1308,7 +1432,7 @@ threadnum = omp_get_thread_num();
 	return expectedWeightChange;
 }
 
-inline double VectorGLMBSLAM2D::sampleLMDeath(VectorGLMBComponent2D &c) {
+inline double VectorGLMBSLAM6D::sampleLMDeath(VectorGLMBComponent6D &c) {
 	double expectedWeightChange = 0;
 	boost::uniform_real<> uni_dist(0, 1);
 	int threadnum = 0;
@@ -1370,7 +1494,7 @@ threadnum = omp_get_thread_num();
 
 }
 
-inline double VectorGLMBSLAM2D::sampleDA(VectorGLMBComponent2D &c) {
+inline double VectorGLMBSLAM6D::sampleDA(VectorGLMBComponent6D &c) {
 	std::vector<double> P ;
 	boost::uniform_real<> uni_dist(0, 1);
 	int threadnum = 0;
@@ -1533,7 +1657,7 @@ threadnum = omp_get_thread_num();
 	return expectedWeightChange;
 }
 
-inline void VectorGLMBSLAM2D::updateFoV(VectorGLMBComponent2D &c) {
+inline void VectorGLMBSLAM6D::updateFoV(VectorGLMBComponent6D &c) {
 	for(auto map_point&:c.landmarks_){
 		map_point.numFoV_ = 0;
 		map_point.numFoV_ = 0;
@@ -1559,7 +1683,7 @@ inline void VectorGLMBSLAM2D::updateFoV(VectorGLMBComponent2D &c) {
 	}
 }
 
-inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c, int minpose, int maxpose) {
+inline void VectorGLMBSLAM6D::updateDAProbs(VectorGLMBComponent6D &c, int minpose, int maxpose) {
 
 	g2o::JacobianWorkspace jac_ws;
 	MeasurementEdge z;
@@ -1751,7 +1875,7 @@ inline void VectorGLMBSLAM2D::updateDAProbs(VectorGLMBComponent2D &c, int minpos
 
 }
 
-inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
+inline void VectorGLMBSLAM6D::constructGraph(VectorGLMBComponent6D &c) {
 
 	c.numPoses_ = 0;
 	c.numPoints_ = 0;
@@ -1875,7 +1999,7 @@ inline void VectorGLMBSLAM2D::constructGraph(VectorGLMBComponent2D &c) {
 
 }
 
-inline void VectorGLMBSLAM2D::init(VectorGLMBComponent2D &c) {
+inline void VectorGLMBSLAM6D::init(VectorGLMBComponent6D &c) {
 	temp_ = config.initTemp_;
 	auto linearSolver = g2o::make_unique<SlamLinearSolver>();
 	linearSolver->setBlockOrdering(false);
