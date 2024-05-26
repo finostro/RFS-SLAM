@@ -41,30 +41,37 @@ namespace rfs
 {
 	class OrbslamPose;
 
+
+
+
     class OrbslamMapPoint
     {
 
     public:
-	    g2o::VertexSBAPointXYZ *pPoint;
+        typedef g2o::VertexSBAPointXYZ PointType;
+        typedef g2o::VertexSE3Expmap PoseType;
+        typedef g2o::EdgeProjectXYZ2UV MonocularMeasurementEdge;
+        typedef g2o::EdgeStereoSE3ProjectXYZ StereoMeasurementEdge;
+
+
+        PointType *pPoint;
         int numDetections_;
         int numFoV_;
-        double landmarkInitProb_;
         std::vector<int> is_in_fov_;
 
         // Mean viewing direction
-        Eigen::Vector3d mNormalVector;
+        Eigen::Vector3d normalVector;
 
         // Best descriptor to fast matching
-        cv::Mat mDescriptor;
+        cv::Mat descriptor;
 
         // Scale invariance distances
         float mfMinDistance;
         float mfMaxDistance;
 
-        // Keyframes observing the point and associated index in keyframe
-        std::map<int , std::tuple<int, int>> mObservations;
 
         int predictScale(double dist, OrbslamPose *pPose);
+
 
 
 

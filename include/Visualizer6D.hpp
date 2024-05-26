@@ -40,6 +40,8 @@
 
 #include <vtkCommand.h>
 #include <vtkSphereSource.h>
+#include <vtkAxesActor.h>
+#include <vtkTransform.h>
 #include <vtkPolyData.h>
 #include <vtkPolyLine.h>
 #include <vtkCellArray.h>
@@ -52,10 +54,14 @@
 #include <vtkActor.h>
 #include <vtkRenderWindow.h>
 #include <vtkRenderer.h>
+#include <vtkOpenGLRenderer.h>
 #include <vtkRenderWindowInteractor.h>
 #include <vtkGlyph3D.h>
 #include <vtkPointData.h>
 #include <vtkInteractorStyleTrackballCamera.h>
+#include <vtkNamedColors.h>
+
+#include "VectorGLMBComponent6D.hpp"
 
 namespace rfs{
 /**
@@ -72,7 +78,9 @@ public:
 
 	void setup(const std::vector<MeasurementModel_6D::TLandmark> &groundtruth_landmark_,
 			const std::vector<MotionModel_Odometry6d::TState> &groundtruth_pose_,
-			const std::vector<MotionModel_Odometry6d::TState> &deadreckoning_pose_);
+			const std::vector<MotionModel_Odometry6d::TState> &deadreckoning_pose_ );
+	void setup();
+
 
         void update(RBPHDFilter<MotionModel_Odometry6d, StaticProcessModel<Landmark3d>,
                         MeasurementModel_6D,
@@ -80,6 +88,7 @@ public:
         void update(RBLMBFilter<MotionModel_Odometry6d, StaticProcessModel<Landmark3d>,
                         MeasurementModel_6D,
                         KalmanFilter<StaticProcessModel<Landmark3d>, MeasurementModel_6D> > *pFilter_);
+        void update(const VectorGLMBComponent6D &c);
 
 	void start();
 
@@ -98,10 +107,17 @@ public:
 	vtkSmartPointer<vtkGlyph3D> mapGlyph3D_, gtmapGlyph3D_, particleGlyph3D_;
 	vtkSmartPointer<vtkPolyData> mapPolydata_, gtmapPolydata_, particlePolydata_, gtTrajectoryPolydata_, estTrajectoryPolydata_, drTrajectoryPolydata_, measurementPolydata_;
 	vtkSmartPointer<vtkActor> mapActor_, gtmapActor_, particleActor_, gtTrajectoryActor_, estTrajectoryActor_, drTrajectoryActor_, measurementActor_;
+	vtkSmartPointer<vtkAxesActor>  axesActor_;
 	vtkSmartPointer<vtkPolyDataMapper> mapMapper_, gtmapMapper_, particleMapper_, gtTrajectoryMapper_, estTrajectoryMapper_, drTrajectoryMapper_, measurementMapper_;
 
+
+  	vtkSmartPointer<vtkTransform> origin_transform;
+
+
+  	vtkSmartPointer<vtkNamedColors> colors_;
+
 	std::vector<MotionModel_Odometry6d::TState> const *groundtruth_pose_;
-	double sphere_radius_ = 0.1;
+	double sphere_radius_ = 2.1;
 	bool stopped=false;
 	bool init_trajectory=false;
 	std::thread *display_thread_;

@@ -750,7 +750,6 @@ public:
 			// Visualization
 			if(use_gui_){
 				// diplay particle poses
-
 				visualizer->update(pFilter_);
 
 

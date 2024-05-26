@@ -47,11 +47,14 @@ set(OpenGL_GL_PREFERENCE GLVND)
 #SET(CMAKE_C_COMPILER "gcc")
 #SET(CMAKE_CXX_COMPILER "g++")
 
-include(CheckCXXCompilerFlag)
-CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
-if(COMPILER_SUPPORTS_MARCH_NATIVE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
-endif()
+
+
+option (BUILD_WITH_MARCH_NATIVE "Build with \"-march native\"" OFF)
+  if(BUILD_WITH_MARCH_NATIVE AND NOT "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "arm" AND "${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native")
+  endif()
+
 
 
 
@@ -70,7 +73,7 @@ IF(APPLE)
   ENDIF()
 ENDIF()
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native ")
+
 
 
 # sanitizer
@@ -162,6 +165,7 @@ FIND_PACKAGE(Eigen REQUIRED)
 # Google Ceres
 
 FIND_PACKAGE(Ceres REQUIRED)
+FIND_PACKAGE(Sophus REQUIRED)
 
 # G2O 
 FIND_PACKAGE(g2o REQUIRED)
@@ -183,26 +187,19 @@ MESSAGE(${OpenCV_VERSION})
 
 # VTK visualization
 find_package(VTK REQUIRED 	COMPONENTS 
-    ChartsCore
-    CommonCore
-    CommonDataModel
-    CommonExecutionModel
-    FiltersCore
-    FiltersExtraction
-    FiltersGeometry
-    FiltersModeling
-    ImagingCore
-    ImagingSources
-    InteractionStyle
-    InteractionWidgets
-    IOCore
-    IOGeometry
-    IOImage
-    IOLegacy
-    IOPLY
-    RenderingAnnotation
-    RenderingLOD
-    ViewsContext2D)
+CommonColor
+CommonCore
+CommonDataModel
+CommonTransforms
+FiltersSources
+InteractionStyle
+RenderingAnnotation
+RenderingContextOpenGL2
+RenderingCore
+RenderingFreeType
+RenderingGL2PSOpenGL2
+RenderingOpenGL2
+)
     
 
 # GTest
@@ -269,7 +266,12 @@ ADD_LIBRARY(rfsslam
   )
   
   
-TARGET_LINK_LIBRARIES(rfsslam   ${Boost_LIBRARIES}  ${VTK_LIBRARIES} ${OpenCV_LIBS} )
+TARGET_LINK_LIBRARIES(rfsslam   ${Boost_LIBRARIES}  ${OpenCV_LIBS} ${Sophus_LIBRARIES} fmt::fmt   ${VTK_LIBRARIES})
+
+vtk_module_autoinit(
+  TARGETS rfsslam
+  MODULES ${VTK_LIBRARIES}
+)
 
 ADD_EXECUTABLE(rbphdslam2dSim src/rbphdslam2dSim.cpp)
 TARGET_LINK_LIBRARIES(rbphdslam2dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
@@ -283,7 +285,12 @@ TARGET_LINK_LIBRARIES(rblmbslam2dCityTrees10000 ${Boost_LIBRARIES} rfsslam ${Per
 
 
 ADD_EXECUTABLE(rbphdslam6dSim src/rbphdslam6dSim.cpp)
-TARGET_LINK_LIBRARIES(rbphdslam6dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} ${VTK_LIBRARIES} Threads::Threads)
+TARGET_LINK_LIBRARIES(rbphdslam6dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} Threads::Threads   ${VTK_LIBRARIES})
+vtk_module_autoinit(
+  TARGETS rbphdslam6dSim
+  MODULES ${VTK_LIBRARIES}
+)
+
 
 ADD_EXECUTABLE(rbphdslam2dSim_amplitude src/rbphdslam2dSim_amplitude.cpp)
 TARGET_LINK_LIBRARIES(rbphdslam2dSim_amplitude ${Boost_LIBRARIES} rfsslam)
@@ -309,9 +316,13 @@ TARGET_LINK_LIBRARIES(rfsceresslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRA
 ADD_EXECUTABLE(vglmbslam2d src/vglmbslam2d.cpp)
 TARGET_LINK_LIBRARIES(vglmbslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} )
 
-ADD_EXECUTABLE(vglmbslam6d src/vglmbslam6d_euroc.cpp  src/external/ORBextractor.cc)
-TARGET_LINK_LIBRARIES(vglmbslam6d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} 
-${OpenCV_LIBS} )
+ADD_EXECUTABLE(vglmbslam6d src/vglmbslam6d_euroc.cpp  src/external/ORBextractor.cc src/external/Converter.cc)
+TARGET_LINK_LIBRARIES(vglmbslam6d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core_rd g2o_csparse_extension_rd g2o_solver_csparse_rd g2o_types_slam3d_rd g2o_types_sba_rd g2o_types_sim3_rd  g2o_stuff_rd  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} 
+${OpenCV_LIBS} ${Sophus_LIBRARIES}  ${VTK_LIBRARIES})
+vtk_module_autoinit(
+  TARGETS rbphdslam6dSim
+  MODULES ${VTK_LIBRARIES}
+)
 
 
 
