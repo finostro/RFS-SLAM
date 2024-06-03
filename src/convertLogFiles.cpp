@@ -30,7 +30,7 @@
 
 // Convert log file from old format to new format
 
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <stdio.h>
 #include <string>
 
@@ -44,7 +44,7 @@ int main(int argc, char* argv[]){
   const char* logDir = argv[1];
   printf("Log directory: %s\n", logDir);
 
-  boost::filesystem::path dir(logDir);
+  std::filesystem::path dir(logDir);
   if(!exists(dir)){
     printf("Log directory %s does not exist\n", logDir);
     return 0;
@@ -58,10 +58,10 @@ int main(int argc, char* argv[]){
   filenamePoseEstNew += "particlePose.dat";
   filenameLandmarkEstOld += "landmarkEst.bak";
   filenamePoseEstOld += "particlePose.bak";
-  boost::filesystem::rename( boost::filesystem::path(filenameLandmarkEstNew),
-			     boost::filesystem::path(filenameLandmarkEstOld) );
-  boost::filesystem::rename( boost::filesystem::path(filenamePoseEstNew),
-			     boost::filesystem::path(filenamePoseEstOld) );
+  std::filesystem::rename( std::filesystem::path(filenameLandmarkEstNew),
+			     std::filesystem::path(filenameLandmarkEstOld) );
+  std::filesystem::rename( std::filesystem::path(filenamePoseEstNew),
+			     std::filesystem::path(filenamePoseEstOld) );
   FILE* pLandmarkEstFileNew = fopen(filenameLandmarkEstNew.data(), "w");
   FILE* pLandmarkEstFileOld = fopen(filenameLandmarkEstOld.data(), "r");
   FILE* pPoseEstFileNew = fopen(filenamePoseEstNew.data(), "w");

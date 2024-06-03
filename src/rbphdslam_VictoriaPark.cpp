@@ -29,16 +29,15 @@
  */
 
 #include <assert.h>
-#define BOOST_NO_CXX11_SCOPED_ENUMS // required for boost/filesystem to work with C++11
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <boost/foreach.hpp>
 #include <boost/lexical_cast.hpp>
-#include <boost/program_options.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 #include "ProcessModel_Ackerman2D.hpp"
 #include "RBPHDFilter.hpp"
 #include "KalmanFilter_VictoriaPark.hpp"
+#include "external/argparse.hpp"
 #include <stdio.h>
 #include <string>
 #include <sstream>
@@ -171,13 +170,13 @@ public:
 
     // Copy config file to logDir
     if(logResultsToFile_ || logTimingToFile_){
-      boost::filesystem::path dir(logDirPrefix_);
-      boost::filesystem::create_directories(dir);
-      boost::filesystem::path cfgFilePathSrc( cfgFileName_ );
+      std::filesystem::path dir(logDirPrefix_);
+      std::filesystem::create_directories(dir);
+      std::filesystem::path cfgFilePathSrc( cfgFileName_ );
       std::string cfgFileDst( logDirPrefix_ );
       cfgFileDst += "settings.xml";
-      boost::filesystem::path cfgFilePathDst( cfgFileDst.data() );
-      boost::filesystem::copy_file( cfgFilePathSrc, cfgFilePathDst, boost::filesystem::copy_option::overwrite_if_exists);
+      std::filesystem::path cfgFilePathDst( cfgFileDst.data() );
+      std::filesystem::copy_file( cfgFilePathSrc, cfgFilePathDst, std::filesystem::copy_options::overwrite_existing);
     }
 
     return true;   
@@ -238,11 +237,11 @@ public:
     }
     file_input.close();
     if(logResultsToFile_){
-      boost::filesystem::path src( dataFileInput_.c_str() );
+      std::filesystem::path src( dataFileInput_.c_str() );
       std::string dst( logDirPrefix_ );
       dst += "inputs.dat";
-      boost::filesystem::path cfgFilePathDst( dst.c_str() );
-      boost::filesystem::copy_file( src, dst, boost::filesystem::copy_option::overwrite_if_exists);
+      std::filesystem::path cfgFilePathDst( dst.c_str() );
+      std::filesystem::copy_file( src, dst, std::filesystem::copy_options::overwrite_existing);
     }
 
     // Read Lidar detections
@@ -264,11 +263,11 @@ public:
     }
     file_measurements.close();
     if(logResultsToFile_){
-      boost::filesystem::path src( dataFileDetection_.c_str() );
+      std::filesystem::path src( dataFileDetection_.c_str() );
       std::string dst( logDirPrefix_ );
       dst += "measurements.dat";
-      boost::filesystem::path cfgFilePathDst( dst.c_str() );
-      boost::filesystem::copy_file( src, dst, boost::filesystem::copy_option::overwrite_if_exists);
+      std::filesystem::path cfgFilePathDst( dst.c_str() );
+      std::filesystem::copy_file( src, dst, std::filesystem::copy_options::overwrite_existing);
     }
 
     // Read Lidar raw scans
@@ -314,11 +313,11 @@ public:
     }
     file_gps.close();
     if(logResultsToFile_){
-      boost::filesystem::path src( dataFileGPS_.c_str() );
+      std::filesystem::path src( dataFileGPS_.c_str() );
       std::string dst( logDirPrefix_ );
       dst += "gps.dat";
-      boost::filesystem::path cfgFilePathDst( dst.c_str() );
-      boost::filesystem::copy_file( src, dst, boost::filesystem::copy_option::overwrite_if_exists);
+      std::filesystem::path cfgFilePathDst( dst.c_str() );
+      std::filesystem::copy_file( src, dst, std::filesystem::copy_options::overwrite_existing);
     }
 
   }
@@ -842,23 +841,24 @@ int main(int argc, char* argv[]){
   int seed = time(NULL);
   srand(seed);
   std::string cfgFileName;
-  boost::program_options::options_description desc("Options");
-  desc.add_options()
-    ("help,h", "produce this help message")
-    ("cfg,c", boost::program_options::value<std::string>(&cfgFileName)->default_value("cfg/rbphdslam_VictoriaPark.xml"), "configuration xml file")
-    ("seed,s", boost::program_options::value<int>(&seed), "random seed for running the simulation (default: based on current system time)");
-  boost::program_options::variables_map vm;
-  boost::program_options::store( boost::program_options::parse_command_line(argc, argv, desc), vm);
-  boost::program_options::notify(vm);
-
-  if( vm.count("help") ){
-    std::cout << desc << "\n";
+  bool printHelp = false;
+  argparse::ArgumentParser parser("This is a test program for argparse");
+  parser.add_argument("-h", "--help").help("produce this help message").store_into(printHelp);
+  parser.add_argument("-c", "--cfg").help("configuration xml file").default_value("cfg/rbphdslam_VictoriaPark.xml").store_into(cfgFileName);
+  parser.add_argument("-s", "--seed").help("random seed for running the simulation (default: based on current system time)").store_into(seed);
+  try {
+    parser.parse_args(argc, argv);
+  } catch (const std::runtime_error& e) {
+    std::cout << e.what() << std::endl;
+    std::cout << parser;
     return 1;
   }
 
-  if( vm.count("cfg") ){
-    cfgFileName = vm["cfg"].as<std::string>();
+  if(printHelp){
+    std::cout << parser;
+    return 1;
   }
+
   std::cout << "Configuration file: " << cfgFileName << std::endl;
   if( !slam.readConfigFile( cfgFileName.data() ) ){
     std::cout << "[Error] Unable to read config file: " << cfgFileName << std::endl;
@@ -869,9 +869,11 @@ int main(int argc, char* argv[]){
   slam.setupRBPHDFilter();
   slam.deadReckoning();
 
-  if( vm.count("seed") ){
-    seed = vm["seed"].as<int>();
+  if( parser.is_used("seed") ){
     std::cout << "Simulation random seed manually set to: " << seed << std::endl;
+  }
+  else{
+    std::cout << "Simulation random seed set to: " << seed << std::endl;
   }
   srand48( seed );
   initializeGaussianGenerators();

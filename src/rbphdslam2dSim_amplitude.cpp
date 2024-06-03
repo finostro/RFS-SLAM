@@ -28,8 +28,7 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define BOOST_NO_CXX11_SCOPED_ENUMS // required for boost/filesystem to work with C++11
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <boost/lexical_cast.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
@@ -378,14 +377,14 @@ public:
     if(!logToFile_)
       return;
 
-    boost::filesystem::path dir(logDirPrefix_);
-    boost::filesystem::create_directories(dir);
+    std::filesystem::path dir(logDirPrefix_);
+    std::filesystem::create_directories(dir);
 
-    boost::filesystem::path cfgFilePathSrc( cfgFileName_ );
+    std::filesystem::path cfgFilePathSrc( cfgFileName_ );
     std::string cfgFileDst( logDirPrefix_ );
     cfgFileDst += "simSettings.xml";
-    boost::filesystem::path cfgFilePathDst( cfgFileDst.data() );
-    boost::filesystem::copy_file( cfgFilePathSrc, cfgFilePathDst, boost::filesystem::copy_option::overwrite_if_exists);
+    std::filesystem::path cfgFilePathDst( cfgFileDst.data() );
+    std::filesystem::copy_file( cfgFilePathSrc, cfgFilePathDst, std::filesystem::copy_options::overwrite_existing);
 
     TimeStamp t;
 

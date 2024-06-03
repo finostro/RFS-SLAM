@@ -30,7 +30,6 @@ Obtain from git repository: `https://kykleung@bitbucket.org/kykleung/phdfilter.g
     * system
     * filesystem
     * graph
-    * program_options
 * Eigen (version 3.0.0 minimum)
 * gtest (optional)
   

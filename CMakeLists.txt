@@ -48,6 +48,7 @@ set(OpenGL_GL_PREFERENCE GLVND)
 #SET(CMAKE_CXX_COMPILER "g++")
 
 
+option (CMAKE_GENERATE_COMPILE_COMMANDS "Generate compile commands" ON)
 
 option (BUILD_WITH_MARCH_NATIVE "Build with \"-march native\"" OFF)
   if(BUILD_WITH_MARCH_NATIVE AND NOT "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "arm" AND "${CMAKE_SYSTEM_NAME}" MATCHES "Linux")
@@ -151,10 +152,13 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 
 # Boost
-FIND_PACKAGE(Boost REQUIRED COMPONENTS timer chrono system filesystem graph program_options container )
 set(Boost_USE_STATIC_LIBS ON)
 set(Boost_USE_MULTITHREADED ON) 
-set(Boost_USE_STATIC_RUNTIME ON)
+# set(Boost_USE_STATIC_RUNTIME ON)
+FIND_PACKAGE(Boost COMPONENTS timer chrono system filesystem graph container REQUIRED )
+MESSAGE("Boost_INCLUDE_DIRS = " ${Boost_INCLUDE_DIRS})
+MESSAGE("Boost_LIBRARIES = " ${Boost_LIBRARIES})
+
 
 # For cmake custom library searches
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
@@ -266,7 +270,7 @@ ADD_LIBRARY(rfsslam
   )
   
   
-TARGET_LINK_LIBRARIES(rfsslam   ${Boost_LIBRARIES}  ${OpenCV_LIBS} ${Sophus_LIBRARIES} fmt::fmt   ${VTK_LIBRARIES})
+TARGET_LINK_LIBRARIES(rfsslam  ${Boost_LIBRARIES}  ${OpenCV_LIBS} ${Sophus_LIBRARIES} fmt::fmt   ${VTK_LIBRARIES})
 
 vtk_module_autoinit(
   TARGETS rfsslam
@@ -274,18 +278,18 @@ vtk_module_autoinit(
 )
 
 ADD_EXECUTABLE(rbphdslam2dSim src/rbphdslam2dSim.cpp)
-TARGET_LINK_LIBRARIES(rbphdslam2dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rbphdslam2dSim rfsslam ${Boost_LIBRARIES}  ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} )
 
 ADD_EXECUTABLE(rbphdslam2dCityTrees10000 src/rbphdslamCityTrees10000.cpp)
-TARGET_LINK_LIBRARIES(rbphdslam2dCityTrees10000 ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rbphdslam2dCityTrees10000  ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 
 ADD_EXECUTABLE(rblmbslam2dCityTrees10000 src/rblmbslamCityTrees10000.cpp)
-TARGET_LINK_LIBRARIES(rblmbslam2dCityTrees10000 ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rblmbslam2dCityTrees10000  ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 
 ADD_EXECUTABLE(rbphdslam6dSim src/rbphdslam6dSim.cpp)
-TARGET_LINK_LIBRARIES(rbphdslam6dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} Threads::Threads   ${VTK_LIBRARIES})
+TARGET_LINK_LIBRARIES(rbphdslam6dSim  ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} Threads::Threads   ${VTK_LIBRARIES})
 vtk_module_autoinit(
   TARGETS rbphdslam6dSim
   MODULES ${VTK_LIBRARIES}
@@ -293,31 +297,31 @@ vtk_module_autoinit(
 
 
 ADD_EXECUTABLE(rbphdslam2dSim_amplitude src/rbphdslam2dSim_amplitude.cpp)
-TARGET_LINK_LIBRARIES(rbphdslam2dSim_amplitude ${Boost_LIBRARIES} rfsslam)
+TARGET_LINK_LIBRARIES(rbphdslam2dSim_amplitude  ${Boost_LIBRARIES} rfsslam)
 
 ADD_EXECUTABLE(rbcbmemberslam2dSim src/rbcbmemberslam2dSim.cpp)
-TARGET_LINK_LIBRARIES(rbcbmemberslam2dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rbcbmemberslam2dSim  ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(rblmbslam2dSim src/rblmbslam2dSim.cpp)
-TARGET_LINK_LIBRARIES(rblmbslam2dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rblmbslam2dSim  ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(rfspsoslam1dSim src/rfspsoslam1dSim.cpp)
-TARGET_LINK_LIBRARIES(rfspsoslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rfspsoslam1dSim  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(rfshmcslam1dSim src/rfshmcslam1dSim.cpp)
-TARGET_LINK_LIBRARIES(rfshmcslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rfshmcslam1dSim  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(rfspsoslam2dSim src/rfspsoslam2dSim.cpp)
-TARGET_LINK_LIBRARIES(rfspsoslam2dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rfspsoslam2dSim  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(rfsceresslam1dSim src/rfsceresslam1dSim.cpp)
-TARGET_LINK_LIBRARIES(rfsceresslam1dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rfsceresslam1dSim  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(vglmbslam2d src/vglmbslam2d.cpp)
-TARGET_LINK_LIBRARIES(vglmbslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} )
+TARGET_LINK_LIBRARIES(vglmbslam2d  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} )
 
 ADD_EXECUTABLE(vglmbslam6d src/vglmbslam6d_euroc.cpp  src/external/ORBextractor.cc src/external/Converter.cc)
-TARGET_LINK_LIBRARIES(vglmbslam6d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core_rd g2o_csparse_extension_rd g2o_solver_csparse_rd g2o_types_slam3d_rd g2o_types_sba_rd g2o_types_sim3_rd  g2o_stuff_rd  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} 
+TARGET_LINK_LIBRARIES(vglmbslam6d  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core_rd g2o_csparse_extension_rd g2o_solver_csparse_rd g2o_types_slam3d_rd g2o_types_sba_rd g2o_types_sim3_rd  g2o_stuff_rd  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} 
 ${OpenCV_LIBS} ${Sophus_LIBRARIES}  ${VTK_LIBRARIES})
 vtk_module_autoinit(
   TARGETS rbphdslam6dSim
@@ -327,44 +331,44 @@ vtk_module_autoinit(
 
 
 ADD_EXECUTABLE(nng2oslam2d src/nng2osolver.cpp)
-TARGET_LINK_LIBRARIES(nng2oslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES} )
+TARGET_LINK_LIBRARIES(nng2oslam2d  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES} )
 
 ADD_EXECUTABLE(mlag2oslam2d src/mlag2osolver.cpp)
-TARGET_LINK_LIBRARIES(mlag2oslam2d ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}  )
+TARGET_LINK_LIBRARIES(mlag2oslam2d  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}  )
 
 ADD_EXECUTABLE(rfsceresslam2dSim src/rfsceresslam2dSim.cpp)
-TARGET_LINK_LIBRARIES(rfsceresslam2dSim ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rfsceresslam2dSim  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(fastslam2dSim src/fastslam2dSim.cpp)
-TARGET_LINK_LIBRARIES(fastslam2dSim ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY}) 
+TARGET_LINK_LIBRARIES(fastslam2dSim  ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY}) 
 
 ADD_EXECUTABLE(rbphdslam_VictoriaPark src/rbphdslam_VictoriaPark.cpp)
-TARGET_LINK_LIBRARIES(rbphdslam_VictoriaPark ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(rbphdslam_VictoriaPark  ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(fastslam_VictoriaPark src/fastslam_VictoriaPark.cpp)
-TARGET_LINK_LIBRARIES(fastslam_VictoriaPark ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
+TARGET_LINK_LIBRARIES(fastslam_VictoriaPark  ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
 ADD_EXECUTABLE(analysis2dSim src/analysis2dSim.cpp)
-TARGET_LINK_LIBRARIES(analysis2dSim ${Boost_LIBRARIES} rfsslam)
+TARGET_LINK_LIBRARIES(analysis2dSim  ${Boost_LIBRARIES} rfsslam)
 
 ADD_EXECUTABLE(spatialIndexTree src/examples/spatialIndexTree.cpp)
-TARGET_LINK_LIBRARIES(spatialIndexTree ${Boost_LIBRARIES} rfsslam)
+TARGET_LINK_LIBRARIES(spatialIndexTree  ${Boost_LIBRARIES} rfsslam)
 
 ADD_EXECUTABLE(convertLogFiles src/convertLogFiles.cpp)
-TARGET_LINK_LIBRARIES(convertLogFiles ${Boost_LIBRARIES})
+TARGET_LINK_LIBRARIES(convertLogFiles  ${Boost_LIBRARIES})
 
 IF(GTEST_FOUND)
 
   #ADD_EXECUTABLE(unitTest test/test.cpp src/Measurement.cpp src/Pose.cpp)
-  #TARGET_LINK_LIBRARIES(unitTest ${GTEST_LIBRARIES} ${Boost_LIBRARIES} pthread TimeStamp MeasurementModel ProcessModel LinearAssignment)
+  #TARGET_LINK_LIBRARIES(unitTest  ${GTEST_LIBRARIES} ${Boost_LIBRARIES} pthread TimeStamp MeasurementModel ProcessModel LinearAssignment)
   #ADD_TEST(unitTest bin/unitTest)
   
   ADD_EXECUTABLE(spatialIndexTreeTest test/SpatialIndexTreeTest.cpp)
-  TARGET_LINK_LIBRARIES(spatialIndexTreeTest ${GTEST_LIBRARIES} ${Boost_LIBRARIES} rfsslam pthread)
+  TARGET_LINK_LIBRARIES(spatialIndexTreeTest  ${GTEST_LIBRARIES} ${Boost_LIBRARIES} rfsslam pthread)
   ADD_TEST(unitTest spatialIndexTreeTest)
 
   #ADD_EXECUTABLE(matrixPermanentTest test/MatrixPermanentTest.cpp)
-  #TARGET_LINK_LIBRARIES(matrixPermanentTest ${GTEST_LIBRARIES} rfsslam pthread)
+  #TARGET_LINK_LIBRARIES(matrixPermanentTest  ${GTEST_LIBRARIES} rfsslam pthread)
   #ADD_TEST(unitTest matrixPermanentTest)
 
 ENDIF()
@@ -373,29 +377,29 @@ ENDIF()
 
 ADD_EXECUTABLE(linearAssignment_CostMatrixPartitioning src/examples/linearAssignment_CostMatrixPartitioning.cpp)
 TARGET_LINK_LIBRARIES(linearAssignment_CostMatrixPartitioning
-${Boost_LIBRARIES} rfsslam)
+ ${Boost_LIBRARIES} rfsslam)
 
 ADD_EXECUTABLE(linearAssignment_LexicographicOrdering src/examples/linearAssignment_LexicographicOrdering.cpp)
-TARGET_LINK_LIBRARIES(linearAssignment_LexicographicOrdering ${Boost_LIBRARIES} rfsslam)
+TARGET_LINK_LIBRARIES(linearAssignment_LexicographicOrdering  ${Boost_LIBRARIES} rfsslam)
 
 ADD_EXECUTABLE(linearAssignment_MurtyAlgorithm src/examples/linearAssignment_MurtyAlgorithm.cpp)
-TARGET_LINK_LIBRARIES(linearAssignment_MurtyAlgorithm ${Boost_LIBRARIES} rfsslam)
+TARGET_LINK_LIBRARIES(linearAssignment_MurtyAlgorithm  ${Boost_LIBRARIES} rfsslam)
 
 ADD_EXECUTABLE(ospaError src/examples/ospaError.cpp)
-TARGET_LINK_LIBRARIES(ospaError ${Boost_LIBRARIES} rfsslam)
+TARGET_LINK_LIBRARIES(ospaError  ${Boost_LIBRARIES} rfsslam)
 
 
 ADD_EXECUTABLE(ospaErrorFromFile src/examples/ospaErrorFromFile.cpp)
-TARGET_LINK_LIBRARIES(ospaErrorFromFile ${Boost_LIBRARIES} rfsslam)
+TARGET_LINK_LIBRARIES(ospaErrorFromFile  ${Boost_LIBRARIES} rfsslam)
 
 ADD_EXECUTABLE(ospaErrorFromg2oFile src/examples/ospaErrorFromg2oFile.cpp)
-TARGET_LINK_LIBRARIES(ospaErrorFromg2oFile ${Boost_LIBRARIES} rfsslam)
+TARGET_LINK_LIBRARIES(ospaErrorFromg2oFile  ${Boost_LIBRARIES} rfsslam)
 
 ADD_EXECUTABLE(cpu_timer_test src/tests/cpu_timer_info.cpp)
-TARGET_LINK_LIBRARIES(cpu_timer_test ${Boost_LIBRARIES})
+TARGET_LINK_LIBRARIES(cpu_timer_test  ${Boost_LIBRARIES})
 
 ADD_EXECUTABLE(jcbb_test src/tests/jcbb_test.cpp)
-TARGET_LINK_LIBRARIES(jcbb_test ${Boost_LIBRARIES} rfsslam)
+TARGET_LINK_LIBRARIES(jcbb_test  ${Boost_LIBRARIES} rfsslam)
 
 set_target_properties(linearAssignment_CostMatrixPartitioning
 	linearAssignment_LexicographicOrdering

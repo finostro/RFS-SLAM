@@ -28,10 +28,8 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define BOOST_NO_CXX11_SCOPED_ENUMS // required for boost/filesystem to work with C++11
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include <boost/lexical_cast.hpp>
-#include <boost/program_options.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 #include "ProcessModel_Odometry2D.hpp"
@@ -43,6 +41,7 @@
 
 #include "ceres/ceres.h"
 #include "ceres/dynamic_autodiff_cost_function.h"
+#include "external/argparse.hpp"
 
 #ifdef _PERFTOOLS_CPU
 #include <gperftools/profiler.h>
@@ -472,14 +471,14 @@ public:
       if (!logToFile_)
         return;
 
-      boost::filesystem::path dir(logDirPrefix_);
-      boost::filesystem::create_directories(dir);
+      std::filesystem::path dir(logDirPrefix_);
+      std::filesystem::create_directories(dir);
 
-      boost::filesystem::path cfgFilePathSrc(cfgFileName_);
+      std::filesystem::path cfgFilePathSrc(cfgFileName_);
       std::string cfgFileDst(logDirPrefix_);
       cfgFileDst += "simSettings.cfg";
-      boost::filesystem::path cfgFilePathDst(cfgFileDst.data());
-      boost::filesystem::copy_file(cfgFilePathSrc, cfgFilePathDst, boost::filesystem::copy_option::overwrite_if_exists);
+      std::filesystem::path cfgFilePathDst(cfgFileDst.data());
+      std::filesystem::copy_file(cfgFilePathSrc, cfgFilePathDst, std::filesystem::copy_options::overwrite_existing);
 
       TimeStamp t;
 
@@ -907,31 +906,31 @@ main (int argc, char* argv[]) {
   srand(seed);
   int trajNum = rand();
   std::string cfgFileName;
-  boost::program_options::options_description desc("Options");
-  desc.add_options()("help,h", "produce this help message")(
-      "cfg,c", boost::program_options::value<std::string>(&cfgFileName)->default_value("cfg/rfsceresslam2dSim.xml"), "configuration xml file")(
-      "trajectory,t", boost::program_options::value<int>(&trajNum), "trajectory number (default: a random integer)")(
-      "seed,s", boost::program_options::value<int>(&seed), "random seed for running the simulation (default: based on current system time)");
-  boost::program_options::variables_map vm;
-  boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), vm);
-  boost::program_options::notify(vm);
-
-  if (vm.count("help")) {
-    std::cout << desc << "\n";
+  bool printHelp = false;
+  argparse::ArgumentParser parser("This is a test program for argparse");
+  parser.add_argument("-h", "--help").help("produce this help message").store_into(printHelp);
+  parser.add_argument("-c", "--cfg").help("configuration xml file").default_value("cfg/rbphdslam2dSim.xml").store_into(cfgFileName);
+  parser.add_argument("-t", "--trajectory").help("trajectory number (default: a random integer)").store_into(trajNum);
+  parser.add_argument("-s", "--seed").help("random seed for running the simulation (default: based on current system time)").store_into(seed);
+  try {
+    parser.parse_args(argc, argv);
+  } catch (const std::runtime_error& e) {
+    std::cout << e.what() << std::endl;
+    std::cout << parser;
     return 1;
   }
 
-  if (vm.count("cfg")) {
-    cfgFileName = vm["cfg"].as<std::string>();
-  }
-  std::cout << "Configuration file: " << cfgFileName << std::endl;
-  if (!sim.readConfigFile(cfgFileName.data())) {
-    return -1;
+  if(printHelp){
+    std::cout << parser;
+    return 1;
   }
 
-  if (vm.count("trajectory")) {
-    trajNum = vm["trajectory"].as<int>();
+  std::cout << "Configuration file: " << cfgFileName << std::endl;
+  if( !sim.readConfigFile( cfgFileName.data() ) ){
+    return -1;
   }
+  
+
   std::cout << "Trajectory: " << trajNum << std::endl;
   sim.generateTrajectory(trajNum);
 
@@ -942,9 +941,11 @@ main (int argc, char* argv[]) {
   sim.exportSimData();
 
   sim.setup();
-  if (vm.count("seed")) {
-    seed = vm["seed"].as<int>();
+  if( parser.is_used("seed") ){
     std::cout << "Simulation random seed manually set to: " << seed << std::endl;
+  }
+  else{
+    std::cout << "Simulation random seed set to: " << seed << std::endl;
   }
 
   srand48(seed);

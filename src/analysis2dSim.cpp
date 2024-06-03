@@ -29,7 +29,7 @@
  */
 
 #include <assert.h> 
-#include <boost/filesystem.hpp>
+#include <filesystem>
 #include "GaussianMixture.hpp"
 #include "Landmark.hpp"
 #include "COLA.hpp"
@@ -380,7 +380,7 @@ int main(int argc, char* argv[]){
   const char* logDir = argv[1];
   printf("Log directory: %s\n", logDir);
 
-  boost::filesystem::path dir(logDir);
+  std::filesystem::path dir(logDir);
   if(!exists(dir)){
     printf("Log directory %s does not exist\n", logDir);
     return 0;

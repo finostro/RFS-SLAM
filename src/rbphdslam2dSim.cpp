@@ -30,7 +30,7 @@
 
 #include "RBPHDSLAM_2D.hpp"
 #include "MeasurementModel_XY.hpp"
-
+#include "external/argparse.hpp"
 
 
 
@@ -43,32 +43,30 @@ int main(int argc, char* argv[]){
   srand(seed);
   int trajNum = rand();
   std::string cfgFileName;
-  boost::program_options::options_description desc("Options");
-  desc.add_options()
-    ("help,h", "produce this help message")
-    ("cfg,c", boost::program_options::value<std::string>(&cfgFileName)->default_value("cfg/rbphdslam2dSim.xml"), "configuration xml file")
-    ("trajectory,t", boost::program_options::value<int>(&trajNum), "trajectory number (default: a random integer)")
-    ("seed,s", boost::program_options::value<int>(&seed), "random seed for running the simulation (default: based on current system time)");
-  boost::program_options::variables_map vm;
-  boost::program_options::store( boost::program_options::parse_command_line(argc, argv, desc), vm);
-  boost::program_options::notify(vm);
-
-  if( vm.count("help") ){
-    std::cout << desc << "\n";
+  bool printHelp = false;
+  argparse::ArgumentParser parser("This is a test program for argparse");
+  parser.add_argument("-h", "--help").help("produce this help message").store_into(printHelp);
+  parser.add_argument("-c", "--cfg").help("configuration xml file").default_value("cfg/rbphdslam2dSim.xml").store_into(cfgFileName);
+  parser.add_argument("-t", "--trajectory").help("trajectory number (default: a random integer)").store_into(trajNum);
+  parser.add_argument("-s", "--seed").help("random seed for running the simulation (default: based on current system time)").store_into(seed);
+  try {
+    parser.parse_args(argc, argv);
+  } catch (const std::runtime_error& e) {
+    std::cout << e.what() << std::endl;
+    std::cout << parser;
     return 1;
   }
 
-  if( vm.count("cfg") ){
-    cfgFileName = vm["cfg"].as<std::string>();
+  if(printHelp){
+    std::cout << parser;
+    return 1;
   }
+
   std::cout << "Configuration file: " << cfgFileName << std::endl;
   if( !sim.readConfigFile( cfgFileName.data() ) ){
     return -1;
   }
   
-  if( vm.count("trajectory") ){
-    trajNum = vm["trajectory"].as<int>();
-  }
   std::cout << "Trajectory: " << trajNum << std::endl;
 
   sim.setupRBPHDFilter();
@@ -79,9 +77,11 @@ int main(int argc, char* argv[]){
   sim.generateMeasurements();
   sim.exportSimData();
 
-  if( vm.count("seed") ){
-    seed = vm["seed"].as<int>();
+  if( parser.is_used("seed") ){
     std::cout << "Simulation random seed manually set to: " << seed << std::endl;
+  }
+  else{
+    std::cout << "Simulation random seed set to: " << seed << std::endl;
   }
   srand48( seed );
   initializeGaussianGenerators();
