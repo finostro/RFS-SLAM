@@ -29,7 +29,7 @@
  */
 
 #include "RBPHDSLAM_2D.hpp"
-#include "MeasurementModel_XY.hpp"
+#include "measurement_models/MeasurementModel_XY.hpp"
 #include "external/argparse.hpp"
 
 

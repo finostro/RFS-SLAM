@@ -32,7 +32,7 @@
 #ifndef LANDMARKWITHDESCRIPTOR_HPP
 #define LANDAMRKWITHDESCRIPTOR_HPP
 
-#include "MeasurementModel.hpp"
+#include "measurement_models/MeasurementModel.hpp"
 #include "Landmark.hpp"
 #include "Pose.hpp"
 

@@ -33,7 +33,7 @@
 
 #include "Particle.hpp"
 #include "ProcessModel.hpp"
-#include "MeasurementModel.hpp"
+#include "measurement_models/MeasurementModel.hpp"
 #include <vector>
 
 namespace rfs{

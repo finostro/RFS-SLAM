@@ -53,4 +53,8 @@ namespace rfs
 		return nScale;
 
 	}
+
+
+
+
 }

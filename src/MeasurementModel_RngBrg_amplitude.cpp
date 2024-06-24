@@ -28,7 +28,7 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "MeasurementModel_RngBrg_amplitude.hpp"
+#include "measurement_models/MeasurementModel_RngBrg_amplitude.hpp"
 
 namespace rfs
 {

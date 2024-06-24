@@ -39,7 +39,7 @@
 #include <queue>
 #include <vector>
 
-#include "MeasurementModel.hpp"
+#include "measurement_models/MeasurementModel.hpp"
 #include "Tree.hpp"
 
 namespace rfs{

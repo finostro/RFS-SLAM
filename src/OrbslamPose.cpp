@@ -35,36 +35,40 @@ namespace rfs
 {
 
 
-        bool OrbslamPose::isInFrustum(OrbslamMapPoint *pMP, float viewingCosLimit, g2o::CameraParameters *cam_params)
+    bool OrbslamPose::isInFrustum(OrbslamMapPoint *pMP, float viewingCosLimit, gtsam::StereoCamera &camera, double * predictedScale)
         {
 
-        	Eigen::Vector3d  point_in_camera_frame = pPose->estimate().map(pMP->pPoint->estimate());
-
+            OrbslamPose::PointType  point_in_camera_frame = pose.transformTo(pMP->position);
+            // std::cout <<"point_in_camera_frame   " <<point_in_camera_frame << "\n"
+            //     << "z  " << point_in_camera_frame(2)  << "\n";
             // check depth
             if (point_in_camera_frame(2) <= 0)
             {
                 return false;
             }
-            Eigen::Vector3d uvu = cam_params->stereocam_uvu_map(point_in_camera_frame);
+            
+            gtsam::StereoPoint2  stereoPoint = camera.project( point_in_camera_frame );
+           
 
             // check image bounds
-            if (uvu(0) < mnMinX || uvu(0) > mnMaxX)
+            
+            if (stereoPoint.uL() < mnMinX || stereoPoint.uL() > mnMaxX)
             {
                 return false;
             }
 
-            if (uvu(1) < mnMinY || uvu(1) > mnMaxY)
+            if (stereoPoint.v() < mnMinY || stereoPoint.v() > mnMaxY)
             {
                 return false;
             }
 
-            if (uvu(2) < mnMinX || uvu(2) > mnMaxX)
+            if (stereoPoint.uR() < mnMinX || stereoPoint.uR() > mnMaxX)
             {
                 return false;
             }
 
             // Check distance is in the scale invariance region of the MapPoint
-            const float maxDistance = pMP->mfMinDistance;
+            const float maxDistance = pMP->mfMaxDistance;
             const float minDistance = pMP->mfMinDistance;
             const float dist = point_in_camera_frame.norm();
 
@@ -73,15 +77,62 @@ namespace rfs
 
             // Check viewing angle
             Eigen::Vector3d Pn = pMP->normalVector;
-            const float viewCos = point_in_camera_frame.dot(Pn) / dist;
+            Eigen::Vector3d viewingVector =pMP->position-pose.translation();
+            
+            const float viewCos = viewingVector.dot(Pn) / dist;
 
             if (viewCos < viewingCosLimit)
                 return false;
 
             // Predict scale in the image
             const int nPredictedLevel = pMP->predictScale(dist, this);
+            if (predictedScale!=NULL){
+                *predictedScale = nPredictedLevel;
+            }
             return true;
         }
+
+OrbslamPose OrbslamPose::clone() {
+	return OrbslamPose(*this);
+}
+
+OrbslamPose::OrbslamPose(const OrbslamPose &other): mnScaleLevels(other.mnScaleLevels),
+		mfScaleFactor(other.mfScaleFactor),
+		mfLogScaleFactor(other.mfLogScaleFactor),
+		mvScaleFactors(other.mvScaleFactors),
+		mvLevelSigma2(other.mvLevelSigma2),
+		mvInvLevelSigma2(other.mvInvLevelSigma2),
+		mnMinX(other.mnMinX),
+		mnMaxX(other.mnMaxX),
+		mnMinY(other.mnMinY),
+		mnMaxY(other.mnMaxY),
+		keypoints_left(other.keypoints_left),
+		keypoints_right(other.keypoints_right),
+		uRight(other.uRight),
+		depth(other.depth),
+		matches_left_to_right(other.matches_left_to_right),
+		fov_(other.fov_),
+        pose(other.pose)
+		{
+
+	descriptors_left = other.descriptors_left;
+	descriptors_right = other.descriptors_right;
+
+}
+
+
+
+OrbslamPose::OrbslamPose(): mnScaleLevels(0),
+		mfScaleFactor(0.0),
+		mfLogScaleFactor(0.0),
+		mnMinX(0),
+		mnMaxX(0),
+		mnMinY(0),
+		mnMaxY(0) {
+
+
+}
+
 
 
 }

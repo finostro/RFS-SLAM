@@ -38,7 +38,7 @@
 #include <boost/random/variate_generator.hpp>
 
 
-#include "MeasurementModel_RngBrg_amplitude.hpp"
+#include "measurement_models/MeasurementModel_RngBrg_amplitude.hpp"
 #include "ProcessModel_Odometry2D.hpp"
 #include "RBPHDFilter.hpp"
 #include "KalmanFilter_RngBrg_amplitude.hpp"

@@ -4,8 +4,8 @@
 #include <boost/shared_ptr.hpp>
 #include <vector>
 
-#include "MeasurementModel.hpp"
-#include "MeasurementModel_RngBrg.hpp"
+#include "measurement_models/MeasurementModel.hpp"
+#include "measurement_models/MeasurementModel_RngBrg.hpp"
 
 namespace rfs{
   

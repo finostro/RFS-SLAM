@@ -6,7 +6,7 @@
 #include "PoseTest.hpp"
 #include "MeasurementTest.hpp"
 #include "ProcessModelTest.hpp"
-#include "MeasurementModelTest.hpp"
+#include "measurement_models/MeasurementModelTest.hpp"
 #include "GaussianMixtureTest.hpp"
 #include "ParticleFilterTest.hpp"
 #include "KalmanFilterTest.hpp"

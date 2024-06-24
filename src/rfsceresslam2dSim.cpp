@@ -34,7 +34,7 @@
 #include <boost/property_tree/xml_parser.hpp>
 #include "ProcessModel_Odometry2D.hpp"
 #include "RFSCeresSLAM.hpp"
-#include "MeasurementModel_RngBrg.hpp"
+#include "measurement_models/MeasurementModel_RngBrg.hpp"
 #include <stdio.h>
 #include <string>
 #include <sys/ioctl.h>

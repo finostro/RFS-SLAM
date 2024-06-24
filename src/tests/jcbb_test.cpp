@@ -1,4 +1,4 @@
-#include "MeasurementModel_XY.hpp"
+#include "measurement_models/MeasurementModel_XY.hpp"
 #include "JCBB.hpp"
 
 using namespace rfs;

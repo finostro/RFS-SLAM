@@ -34,8 +34,14 @@
 #pragma once
 
 
-#include "g2o/types/sba/types_six_dof_expmap.h" // se3 poses
+#include <gtsam/geometry/Pose3.h>
+#include <gtsam/geometry/Point3.h>
+#include <gtsam/geometry/Cal3_S2Stereo.h>
+#include <gtsam/geometry/StereoCamera.h>
+#include <gtsam/slam/StereoFactor.h>
+
 #include <opencv2/core/core.hpp>
+#include <ORB.hpp>
 
 namespace rfs
 {
@@ -48,29 +54,42 @@ namespace rfs
     {
 
     public:
-        typedef g2o::VertexSBAPointXYZ PointType;
-        typedef g2o::VertexSE3Expmap PoseType;
-        typedef g2o::EdgeProjectXYZ2UV MonocularMeasurementEdge;
-        typedef g2o::EdgeStereoSE3ProjectXYZ StereoMeasurementEdge;
+        typedef gtsam::Point3 PointType;
+        typedef gtsam::Pose3 PoseType;
+        typedef gtsam::GenericStereoFactor<gtsam::Pose3,gtsam::Point3> StereoMeasurementEdge;
 
 
-        PointType *pPoint;
+        PointType position;
         int numDetections_;
         int numFoV_;
+        int id;
+        double birthTime_;
+        double maxDetectionTime;
+        // creation
+        int  birthMatch;
+        OrbslamPose *birthPose;
+
         std::vector<int> is_in_fov_;
+        std::set<int> is_detected;
+        std::vector<int> predicted_scales;
 
         // Mean viewing direction
         Eigen::Vector3d normalVector;
 
         // Best descriptor to fast matching
-        cv::Mat descriptor;
+        ORBDescriptor descriptor;
 
         // Scale invariance distances
         float mfMinDistance;
         float mfMaxDistance;
 
+        //hessian 
+        Eigen::Matrix<double, 3 , 3 > hessian;
+
 
         int predictScale(double dist, OrbslamPose *pPose);
+
+        
 
 
 

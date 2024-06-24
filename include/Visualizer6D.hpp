@@ -34,7 +34,7 @@
 #include "RBPHDFilter.hpp"
 #include "RBLMBFilter.hpp"
 #include "ProcessModel_Odometry6D.hpp"
-#include "MeasurementModel_6D.hpp"
+#include "measurement_models/MeasurementModel_6D.hpp"
 #include <thread>
 #include <mutex>
 
@@ -61,7 +61,7 @@
 #include <vtkInteractorStyleTrackballCamera.h>
 #include <vtkNamedColors.h>
 
-#include "VectorGLMBComponent6D.hpp"
+// #include "VectorGLMBComponent6D.hpp"
 
 namespace rfs{
 /**
@@ -88,7 +88,7 @@ public:
         void update(RBLMBFilter<MotionModel_Odometry6d, StaticProcessModel<Landmark3d>,
                         MeasurementModel_6D,
                         KalmanFilter<StaticProcessModel<Landmark3d>, MeasurementModel_6D> > *pFilter_);
-        void update(const VectorGLMBComponent6D &c);
+        // void update(const VectorGLMBComponent6D &c);
 
 	void start();
 

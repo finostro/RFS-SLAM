@@ -37,6 +37,8 @@
 #include <iostream>
 #include <bitset>
 #include <boost/math/distributions/binomial.hpp>
+#include <opencv2/core/core.hpp>
+
 
 namespace rfs{
 
@@ -44,6 +46,30 @@ namespace rfs{
     {
     public:
       std::bitset<256> desc;
+
+
+      ORBDescriptor(){
+
+      }
+
+      ORBDescriptor(cv::Mat vc_desc){
+        for (int i = 0 ;i <4; i++){
+          unsigned long long * ulongptr = (unsigned long long *)vc_desc.ptr(0);
+          std::bitset<256> tmp(*(ulongptr+i));
+        }
+
+      }
+
+      void from_mat(cv::Mat vc_desc){
+        desc.reset();
+        for (int i = 0 ;i <4; i++){
+          unsigned long long * ulongptr = (unsigned long long *)vc_desc.ptr(0);
+          std::bitset<256> tmp(*(ulongptr+i));
+          desc |= tmp<<(i*64);
+        }
+        // std::cout << vc_desc << "\n";
+        // std::cout << desc << "\n";
+      }
 
       void random(){
         desc =lrand48();
@@ -65,9 +91,17 @@ namespace rfs{
         retval.desc = desc^mask.desc;
         return retval;
       }
-      double likelihood(const ORBDescriptor &a){
-        int d = distance(*this, a);
-        return  pow((1/2.10)/(1-1/2.10) , d) * pow(1/1.1,32); //d<96?1. : 0.0;//
+
+      double likelihood(const ORBDescriptor &left, const ORBDescriptor &right){
+        double d = distance(*this, left)+distance(*this, right);
+        if (d > 200) return -std::numeric_limits<double>::infinity();
+        static  double a = std::log(1.0/8.0);
+        static  double b = std::log(7.0/8.0);
+        static  double c = std::log(1.0/2.0);
+        static constexpr double f = -2.0;
+        double ret =d*f;
+        //std::cout << d << "\n";
+        return  ret;
       }
       double falseAlarmLikelihood(){
 
@@ -75,8 +109,8 @@ namespace rfs{
       }
 
       static size_t distance (const ORBDescriptor &a,const ORBDescriptor &b){
-          return ((a.desc^b.desc)).count();
-        }
+        return ((a.desc^b.desc)).count();
+      }
 
     };
 

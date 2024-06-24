@@ -34,7 +34,7 @@
 #include <boost/property_tree/xml_parser.hpp>
 #include "FastSLAM.hpp"
 #include "KalmanFilter.hpp"
-#include "MeasurementModel_RngBrg.hpp"
+#include "measurement_models/MeasurementModel_RngBrg.hpp"
 #include "ProcessModel_Odometry2D.hpp"
 #include "external/argparse.hpp"
 #include <stdio.h>

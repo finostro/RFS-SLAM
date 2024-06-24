@@ -35,7 +35,7 @@
 #define KALMANFILTER_RNGBRG_AMPLITUDE_HPP
 
 #include "KalmanFilter.hpp"
-#include "MeasurementModel_RngBrg_amplitude.hpp"
+#include "measurement_models/MeasurementModel_RngBrg_amplitude.hpp"
 
 namespace rfs{
 

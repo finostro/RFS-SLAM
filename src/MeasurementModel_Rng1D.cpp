@@ -28,7 +28,7 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "MeasurementModel_Rng1D.hpp"
+#include "measurement_models/MeasurementModel_Rng1D.hpp"
 
 namespace rfs
 {

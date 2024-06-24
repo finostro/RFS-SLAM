@@ -1,7 +1,7 @@
 #ifndef MEASUREMENTMODELDESCRIPTOR_HPP
 #define MEASUREMENTMODELDESCRIPTOR_HPP
 
-#include "MeasurementModel.hpp"
+#include "measurement_models/MeasurementModel.hpp"
 #include "MeasurementWithDescriptor.hpp"
 #include "LandmarkWithDescriptor.hpp"
 #include "Pose.hpp"

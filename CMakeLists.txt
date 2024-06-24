@@ -171,11 +171,20 @@ FIND_PACKAGE(Eigen REQUIRED)
 FIND_PACKAGE(Ceres REQUIRED)
 FIND_PACKAGE(Sophus REQUIRED)
 
-# G2O 
-FIND_PACKAGE(g2o REQUIRED)
-FIND_PACKAGE(CSparse REQUIRED)
-FIND_PACKAGE(yaml-cpp REQUIRED)
+# # G2O 
+# FIND_PACKAGE(g2o REQUIRED)
+# FIND_PACKAGE(CSparse REQUIRED)
+# FIND_PACKAGE(yaml-cpp REQUIRED)
 
+# GTSAM
+find_package(GTSAM REQUIRED)
+include_directories(${GTSAM_INCLUDE_DIR})
+set(GTSAM_LIBRARIES gtsam)   # TODO: automatic search libs
+
+find_package(GTSAMCMakeTools)
+include(GtsamMakeConfigFile)
+include(GtsamBuildTypes)
+include(GtsamTesting)
 
 #  Opencv
 find_package(OpenCV 4.4)
@@ -234,7 +243,7 @@ INCLUDE_DIRECTORIES(${PERFTOOLS_INCLUDE_DIRS})
 IF(GTEST_FOUND)
   INCLUDE_DIRECTORIES(${GTEST_INCLUDE_DIRS})
 ENDIF()
-INCLUDE_DIRECTORIES(${G2O_INCLUDE_DIRS})
+# INCLUDE_DIRECTORIES(${G2O_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${CSPARSE_INCLUDE_DIR})
 INCLUDE_DIRECTORIES(${VTK_INCLUDE_DIRS})
 INCLUDE_DIRECTORIES(${OPENCV_INCLUDE_DIRS})
@@ -270,7 +279,7 @@ ADD_LIBRARY(rfsslam
   )
   
   
-TARGET_LINK_LIBRARIES(rfsslam  ${Boost_LIBRARIES}  ${OpenCV_LIBS} ${Sophus_LIBRARIES} fmt::fmt   ${VTK_LIBRARIES})
+TARGET_LINK_LIBRARIES(rfsslam  gtsam ${Boost_LIBRARIES}  ${OpenCV_LIBS} ${Sophus_LIBRARIES} fmt::fmt   ${VTK_LIBRARIES})
 
 vtk_module_autoinit(
   TARGETS rfsslam
@@ -317,24 +326,24 @@ TARGET_LINK_LIBRARIES(rfspsoslam2dSim  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRAR
 ADD_EXECUTABLE(rfsceresslam1dSim src/rfsceresslam1dSim.cpp)
 TARGET_LINK_LIBRARIES(rfsceresslam1dSim  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
 
-ADD_EXECUTABLE(vglmbslam2d src/vglmbslam2d.cpp)
-TARGET_LINK_LIBRARIES(vglmbslam2d  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} )
+# ADD_EXECUTABLE(vglmbslam2d src/vglmbslam2d.cpp)
+# TARGET_LINK_LIBRARIES(vglmbslam2d  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} )
 
-ADD_EXECUTABLE(vglmbslam6d src/vglmbslam6d_euroc.cpp  src/external/ORBextractor.cc src/external/Converter.cc)
-TARGET_LINK_LIBRARIES(vglmbslam6d  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core_rd g2o_csparse_extension_rd g2o_solver_csparse_rd g2o_types_slam3d_rd g2o_types_sba_rd g2o_types_sim3_rd  g2o_stuff_rd  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} 
-${OpenCV_LIBS} ${Sophus_LIBRARIES}  ${VTK_LIBRARIES})
-vtk_module_autoinit(
-  TARGETS rbphdslam6dSim
-  MODULES ${VTK_LIBRARIES}
-)
+# ADD_EXECUTABLE(vglmbslam6d src/vglmbslam6d_euroc.cpp  src/external/ORBextractor.cc src/external/Converter.cc)
+# TARGET_LINK_LIBRARIES(vglmbslam6d  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core_rd g2o_csparse_extension_rd g2o_solver_csparse_rd g2o_types_slam3d_rd g2o_types_sba_rd g2o_types_sim3_rd  g2o_stuff_rd  ${YAML_CPP_LIBRARIES}   ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} 
+# ${OpenCV_LIBS} ${Sophus_LIBRARIES}  ${VTK_LIBRARIES})
+# vtk_module_autoinit(
+#   TARGETS rbphdslam6dSim
+#   MODULES ${VTK_LIBRARIES}
+# )
 
 
 
-ADD_EXECUTABLE(nng2oslam2d src/nng2osolver.cpp)
-TARGET_LINK_LIBRARIES(nng2oslam2d  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES} )
+# ADD_EXECUTABLE(nng2oslam2d src/nng2osolver.cpp)
+# TARGET_LINK_LIBRARIES(nng2oslam2d  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES} )
 
-ADD_EXECUTABLE(mlag2oslam2d src/mlag2osolver.cpp)
-TARGET_LINK_LIBRARIES(mlag2oslam2d  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}  )
+# ADD_EXECUTABLE(mlag2oslam2d src/mlag2osolver.cpp)
+# TARGET_LINK_LIBRARIES(mlag2oslam2d  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${CSPARSE_LIBRARY} g2o_core g2o_csparse_extension g2o_solver_csparse g2o_types_slam2d g2o_stuff  ${YAML_CPP_LIBRARIES}  )
 
 ADD_EXECUTABLE(rfsceresslam2dSim src/rfsceresslam2dSim.cpp)
 TARGET_LINK_LIBRARIES(rfsceresslam2dSim  ${Boost_LIBRARIES} rfsslam ${CERES_LIBRARIES} ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY})
@@ -392,8 +401,8 @@ TARGET_LINK_LIBRARIES(ospaError  ${Boost_LIBRARIES} rfsslam)
 ADD_EXECUTABLE(ospaErrorFromFile src/examples/ospaErrorFromFile.cpp)
 TARGET_LINK_LIBRARIES(ospaErrorFromFile  ${Boost_LIBRARIES} rfsslam)
 
-ADD_EXECUTABLE(ospaErrorFromg2oFile src/examples/ospaErrorFromg2oFile.cpp)
-TARGET_LINK_LIBRARIES(ospaErrorFromg2oFile  ${Boost_LIBRARIES} rfsslam)
+# ADD_EXECUTABLE(ospaErrorFromg2oFile src/examples/ospaErrorFromg2oFile.cpp)
+# TARGET_LINK_LIBRARIES(ospaErrorFromg2oFile  ${Boost_LIBRARIES} rfsslam)
 
 ADD_EXECUTABLE(cpu_timer_test src/tests/cpu_timer_info.cpp)
 TARGET_LINK_LIBRARIES(cpu_timer_test  ${Boost_LIBRARIES})

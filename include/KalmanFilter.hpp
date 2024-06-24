@@ -31,8 +31,8 @@
 #ifndef KALMANFILTER_HPP
 #define KALMANFILTER_HPP
 
-#include "MeasurementModel.hpp"
-#include "MeasurementModel_RngBrg.hpp"
+#include "measurement_models/MeasurementModel.hpp"
+#include "measurement_models/MeasurementModel_RngBrg.hpp"
 #include "ProcessModel.hpp"
 #include <vector>
 

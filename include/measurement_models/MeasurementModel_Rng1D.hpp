@@ -28,99 +28,89 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef MEASUREMENTMODEL_RNG1D_HPP
+#define MEASUREMENTMODEL_RNG1D_HPP
 
-#ifndef MEASUREMENTMODEL_RNGBRG_AMPLITUDE_HPP
-#define MEASUREMENTMODEL_RNGBRG_AMPLITUDE_HPP
-
-#include "MeasurementModel.hpp"
-#include "Measurement_amplitude.hpp"
+#include "measurement_models/MeasurementModel.hpp"
 
 namespace rfs{
 
-////////// 2d Range-Bearing Measurement Model //////////
+////////// 1d Measurement Model //////////
 
 /** 
- * \class MeasurementModel_RngBrg
- * A range and bearing measurement model for 2d point landmarks, with Gaussian noise.
- * \f[ \mathbf{z} = 
- * \begin{bmatrix} r \\ b \end{bmatrix} =
- * \mathbf{h}(\mathbf{x}, \mathbf{m}) + \mathbf{e} = 
- * \mathbf{h}\left(\begin{bmatrix}x \\ y \\ \theta\end{bmatrix}, \begin{bmatrix}x_m \\ y_m\end{bmatrix}\right) + \mathbf{e} = 
- * \begin{bmatrix} \sqrt{(x_m - x)^2+(y_m - y)^2}) \\ \arctan{\left(\frac{y_m - y}{x_m - x}\right)} - \theta \end{bmatrix} + \mathbf{e} , \quad \mathbf{e} \sim (\mathbf{0}, \mathbf{R}) \f]
- * where
- * \f$\mathbf{z} = (r, b)\f$ is the range and bearing measurement,
- * \f$\mathbf{x} = (x, y, \theta)\f$ is the robot pose,
- * \f$\mathbf{m} = (x_m, y_m)\f$ is the landmark position, and
- * \f$\mathbf{e}\f$ is the noise with covariance \f$\mathbf{R}\f$
- * \brief A 2d range-bearing measurement model
- * \author Felipe Inostroza, Keith Leung 
+ * \class  MeasurementModel_Rng1D
+ * \f[ z = r = h(x, m) + e = m - x + e, e \sim (0, \sigma^2)\f]
+ * where 
+ * \f$z\f$ or \f$r\f$ is the range measurement, 
+ * \f$x\f$ is the robot position,
+ * \f$m\f$ is the landmark position
+ * \f$e\f$ is the Gaussian noise
+ * \brief Range measurement model for 1d point landmarks with Gaussian noise.
+ * \author Keith Leung
  */
                                                                
-class MeasurementModel_RngBrg_amplitude : public MeasurementModel <Pose2d, Landmark2d, Measurement2d_amplitude>{
+class MeasurementModel_Rng1D : public MeasurementModel <Pose1d, Landmark1d, Measurement1d>{
 
 public:
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-  /** \brief Configuration for this 2d MeasurementModel_RngBrg */
+  /** \brief Configuration for this MeasurementModel_Rng1D */
   struct Config{
     double probabilityOfDetection_; /**< probability of detection, \f$ P_D \f$ */
-    double uniformClutterIntensity_; /**< clutter intensity, \f$ c \f$, assumed to be constant over the sensing area */
+    double uniformClutterIntensity_; /**< clutter intensity, \f$ c \f$, assumed to be constant over the sensing range */
     double rangeLimMax_; /**< sensing range limit, beyond which \f$ P_D = 0 \f$*/
     double rangeLimMin_; /**< sensing range limit, below which \f$ P_D = 0 \f$*/
     double rangeLimBuffer_; /**< Used to define a buffer zone around rangeLimMax_ and rangeLimMin_ to indicate a measurement is close to to the sensing limit */
   }config;
 
  /** Default constructor */
-  MeasurementModel_RngBrg_amplitude();
+  MeasurementModel_Rng1D();
 
  /**
-  * Constructor that sets the uncertainty (covariance) of the measurement model, \f$\mathbf{R}\f$
-  * \param covZ measurement covariance, \f$\mathbf{R}\f$
+  * Constructor that sets the uncertainty of the measurement model, \f$\sigma^2\f$
+  * \param[in] Sr range variance \f$\sigma^2\f$
   */
-  MeasurementModel_RngBrg_amplitude(::Eigen::Matrix2d &covZ);
+  MeasurementModel_Rng1D(::Eigen::Matrix<double, 1, 1> &Sr);
 
  /**
-  * Constructor that sets the uncertainty (covariance) of the measurement model, 
-  * \f[\mathbf{R} = \begin{bmatrix} \sigma_r^2 & 0 \\ 0 & \sigma_b^2 \end{bmatrix}\f]
-  * range and bearing are assumed to be uncorrelated
-  * \param Sr Range variance \f$\sigma_r^2\f$
-  * \param Sb Bearing variance \f$\sigma_b^2\f$
+  * Constructor that sets the uncertainty of the measurement model, \f$\sigma^2\f$
+  * \param[in] Sr range variance \f$\sigma^2\f$
   */
-  MeasurementModel_RngBrg_amplitude(double Sr, double Sb);
+  MeasurementModel_Rng1D(double Sr);
 
  /** Default destructor */
-  ~MeasurementModel_RngBrg_amplitude();
+  ~MeasurementModel_Rng1D();
 
   /** 
    * Obtain a measurement from a given robot pose and landmark position
-   * \f[ \mathbf{z} = \mathbf{h}(\mathbf{x}, \mathbf{m} ) + \mathbf{e}, \mathbf{e} \sim (\mathbf{0}, \mathbf{R}) \f] 
-   * where \f$\mathbf{z}\f$ is a measurement, \f$\mathbf{x}\f$ is the robot pose, \f$\mathbf{m}\f$ is a landmark position, \f$\mathbf{e}\f$ is the zero-mean Gaussian noise.
-   * \param[in] pose \f$\mathbf{x}\f$, robot pose from which the measurement is made
-   * \param[in] landmark \f$\mathbf{m}\f$, the measured landmark
-   * \param[out] measurement \f$\mathbf{x}\f$, the measurement
+   * \f[ z = h(x, m) + e, e \sim (0, \sigma^2) \f] 
+   * where \f$z\f$ is a measurement, \f$x\f$ is the robot pose, \f$m\f$ is a landmark position, \f$e\f$ is the zero-mean Gaussian noise.
+   * \param[in] pose \f$x\f$, robot pose from which the measurement is made
+   * \param[in] landmark \f$m\f$, the measured landmark
+   * \param[out] measurement \f$x\f$, the measurement
    * \param[out] jacobian_wrt_lmk if not NULL, the pointed-to matrix is overwritten 
    * by the Jacobian of the measurement model w.r.t. the landmark state evaluated at 
    * \f$\mathbf{x}\f$ and \f$\mathbf{m}\f$
    * \param[out] jacobian_wrt_pose if not NULL, the pointed-to matrix is overwritten 
    * by the Jacobian of the measurement model w.r.t. the robot state evaluated at 
-   * \f$\mathbf{x}\f$ and \f$\mathbf{m}\f$.
+   * \f$\mathbf{x}\f$ and \f$\mathbf{m}\f$
    * \return true if a valid measurement is produced
    */
-  bool measure( const Pose2d &pose, const Landmark2d &landmark, 
-		Measurement2d_amplitude &measurement, 
-		::Eigen::Matrix2d *jacobian_wrt_lmk = NULL,
-		::Eigen::Matrix<double, 2, 3> *jacobian_wrt_pose = NULL) const;
+  bool measure( const Pose1d &pose, const Landmark1d &landmark, 
+		Measurement1d &measurement, 
+		::Eigen::Matrix<double, 1, 1> *jacobian_wrt_lmk = NULL,
+		::Eigen::Matrix<double, 1, 1> *jacobian_wrt_pose = NULL) const;
 
   /** 
-   * \f[ \mathbf{m} = \mathbf{h}^{-1}(\mathbf{x}, \mathbf{z} )\f] 
-   * where \f$\mathbf{z}\f$ is a measurement, \f$\mathbf{x}\f$ is the robot pose, \f$\mathbf{m}\f$ is a landmark position
-   * \param[in] pose \f$\mathbf{x}\f$, robot pose (the uncertainty is not used here because the 
+   * \f[ m = h^{-1}(x, z)\f] 
+   * where \f$z\f$ is a measurement, \f$\mathbf{x}\f$ is the robot pose, \f$\mathbf{m}\f$ is a landmark position
+   * \param[in] pose \f$x\f$, robot pose (the uncertainty is not used here because the 
    * RBPHDFilter represents robot pose estimates with particles)
-   * \param[in] measurement  \f$\mathbf{z}\f$ measurement, for which the uncertainty is \f$\mathbf{R}\f$
-   * \param[out] landmark  \f$\mathbf{m}\f$, predicted landmark position with uncertainty
+   * \param[in] measurement  \f$z\f$ measurement, for which the uncertainty is \f$\sigma^2\f$
+   * \param[out] landmark  \f$m\f$, predicted landmark position with uncertainty
    */
-  void inverseMeasure(const Pose2d &pose, const Measurement2d_amplitude &measurement, Landmark2d &landmark) const;
+  void inverseMeasure(const Pose1d &pose, const Measurement1d &measurement, Landmark1d &landmark) const;
 
   /**
    * Abstract function of determining a landmark's probability of detection, and if the landmark is close to the sensing limit.
@@ -133,18 +123,18 @@ public:
    * \param[out] isCloseToSensingLimit true if landmark is close to the sensing limit
    * \return probability of detection
    */
-  double probabilityOfDetection( const Pose2d &pose,
-				 const Landmark2d &landmark,
+  double probabilityOfDetection( const Pose1d &pose,
+				 const Landmark1d &landmark,
 				 bool &isCloseToSensingLimit) const;
 
   /**
-   * Determine the clutter intensity in measurement space, using Measurement amplitude information
-   * Uniform clutter intensity is assumed, an exponential distribution is asumed for the amplitude distribution.
+   * Determine the clutter intensity in measurement space.
+   * Uniform clutter intensity is assumed
    * \param[in] z measurement point at which clutter intensity will be determined
    * \param[in] nZ the cardinality of Z, of which z is a member.
    * \return clutter intensity
    */
-  double clutterIntensity( const Measurement2d_amplitude &z,
+  double clutterIntensity( const Measurement1d &z,
 			   int nZ ) const;
 
   /**
@@ -157,7 +147,6 @@ public:
   double clutterIntensityIntegral( int nZ = 0) const;
 
 };
-
 
 }
 

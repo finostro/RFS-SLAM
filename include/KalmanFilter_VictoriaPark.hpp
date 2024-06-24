@@ -2,7 +2,7 @@
 #define KALMANFILTERVICTORIAPARK_HPP
 
 #include "KalmanFilter.hpp"
-#include "MeasurementModel_VictoriaPark.hpp"
+#include "measurement_models/MeasurementModel_VictoriaPark.hpp"
 
 namespace rfs{
 

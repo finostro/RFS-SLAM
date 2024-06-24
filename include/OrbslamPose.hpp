@@ -30,10 +30,17 @@
 
 #pragma once
 
-#include "g2o/types/sba/types_six_dof_expmap.h" // se3 poses
+
+#include <gtsam/geometry/Pose3.h>
+#include <gtsam/geometry/Point3.h>
+#include <gtsam/geometry/Cal3_S2Stereo.h>
+#include <gtsam/geometry/StereoCamera.h>
+#include <gtsam/slam/StereoFactor.h>
+
 #include <opencv2/core/core.hpp>
 #include <vector>
 #include <external/ORBextractor.h>
+#include <ORB.hpp>
 
 namespace rfs
 {
@@ -43,12 +50,11 @@ namespace rfs
     {
 
     public:
-        typedef g2o::VertexSBAPointXYZ PointType;
-        typedef g2o::VertexSE3Expmap PoseType;
-        typedef g2o::EdgeProjectXYZ2UV MonocularMeasurementEdge;
-        typedef g2o::EdgeStereoSE3ProjectXYZ StereoMeasurementEdge;
+        typedef gtsam::Point3 PointType;
+        typedef gtsam::Pose3 PoseType;
+        typedef gtsam::GenericStereoFactor<gtsam::Pose3,gtsam::Point3> StereoMeasurementEdge;
 
-        PoseType *pPose;
+        PoseType pose; //  this is the common interpretation. as in ros TF 
 
         // Scale
          int mnScaleLevels;
@@ -58,6 +64,15 @@ namespace rfs
          std::vector<float> mvLevelSigma2;
          std::vector<float> mvInvLevelSigma2;
 
+        //timestamp
+        double stamp;
+
+        int id; // this is k 
+        // iskeypose
+
+        bool isKeypose;
+        int referenceKeypose;
+        PoseType transformFromReferenceKeypose;
         // image bounds
 
         double mnMinX;
@@ -70,7 +85,7 @@ namespace rfs
         // keypoints detected
         std::vector<cv::KeyPoint> keypoints_left, keypoints_right;
 
-        cv::Mat descriptors_left, descriptors_right;
+        std::vector< ORBDescriptor>  descriptors_left, descriptors_right;
 
         std::vector<float> uRight;
         std::vector<float> depth;
@@ -82,8 +97,12 @@ namespace rfs
 
 
         std::vector<int> fov_; /**< indices of landmarks in field of view at time k */
+        std::vector<int> predicted_scales; /**< predicted scales */
 
-        std::vector<StereoMeasurementEdge *> Z_; /**< Measurement edges stored, in order to set data association and add to graph later */
+        std::vector<StereoMeasurementEdge::shared_ptr> Z_; /**< Measurement edges stored, in order to set data association and add to graph later */
+        
+        std::vector<gtsam::StereoPoint2> stereo_points;
+        std::vector<int > initial_lm_id; /**< Landmark id of measueremen Spawned by this measurement */
 
         /**
          * @brief estimate if map point should be measured, as a stereo pair
@@ -93,7 +112,8 @@ namespace rfs
          * @return true  point is in field of view
          * @return false point should not be measured
          */
-        bool isInFrustum(OrbslamMapPoint *pMP, float viewingCosLimit, g2o::CameraParameters *cam_params);
+        bool isInFrustum(OrbslamMapPoint *pMP, float viewingCosLimit,  gtsam::StereoCamera &camera, double * predictedScale=NULL);
+
 
         /**
          *

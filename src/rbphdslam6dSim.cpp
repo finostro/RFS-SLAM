@@ -34,7 +34,7 @@
 #include <boost/property_tree/xml_parser.hpp>
 #include "ProcessModel_Odometry6D.hpp"
 #include "RBPHDFilter.hpp"
-#include "MeasurementModel_6D.hpp"
+#include "measurement_models/MeasurementModel_6D.hpp"
 #include "Visualizer6D.hpp"
 #include <stdio.h>
 #include <string>

@@ -2,7 +2,7 @@
 // Keith Leung 2013
 
 #include "gtest/gtest.h"
-#include "MeasurementModel.hpp"
+#include "measurement_models/MeasurementModel.hpp"
 #include "ProcessModel.hpp"
 #include "ParticleFilter.hpp"
 
