@@ -7,13 +7,20 @@ gtsam::Point3 to_gtsam(const Landmark3d &landmark){
 	return landmark.get();
 }
 
+gtsam::Pose3 to_gtsam(const Pose3d &pose){
+    return gtsam::Pose3(gtsam::Rot3(Eigen::Quaterniond(Eigen::AngleAxis(pose.getRot().norm(), pose.getRot().normalized()))), pose.getPos());
+}
+
 gtsam::Pose3 to_gtsam(const Pose6d &pose){
     return gtsam::Pose3(gtsam::Rot3(Eigen::Quaterniond(pose.getRot())), pose.getPos());
 }
 
 bool isInFrustum(const Landmark3d &landmark, const Pose6d &pose, const Camera &camera, double * predictedScale){
         
-    return isInFrustum(to_gtsam(landmark), to_gtsam(pose), camera   , camera, predictedScale);
+    auto lm = to_gtsam(landmark);
+    auto pose_gtsam = to_gtsam(pose);
+
+    return isInFrustum( lm , pose_gtsam, camera   , predictedScale);
 }
 
 bool isInFrustum(const gtsam::Point3 &landmark, const gtsam::Pose3 &pose, const Camera &camera, double * predictedScale){

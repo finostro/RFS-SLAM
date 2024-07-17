@@ -387,7 +387,11 @@ namespace rfs{
 
   typedef Pose<1, 1, 0> Pose1d;
   typedef Pose<3, 2, 1> Pose2d;
-  typedef Pose<6, 3, 3> Pose3d;
+/**
+  * \brief Uses Euler rotation vector, i.e \theta*e ,with \theta in radians and is the unit rotation axis
+  * is not continuously differentiable
+  */
+  typedef Pose<6, 3, 3> Pose3d; //< uses Euler rotation vector, i.e \theta*e ,with \theta in radians and is the unit rotation axis
   typedef Pose<7, 3, 4> Pose6d; //< uses quaternions
 
   typedef Pose<1, 1, 0> Position1d;
