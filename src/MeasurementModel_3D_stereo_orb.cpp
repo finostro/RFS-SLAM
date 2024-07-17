@@ -28,12 +28,14 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "measurement_models/MeasurementModel_6D.hpp"
+#include "measurement_models/MeasurementModel_3D_stereo_orb.hpp"
+#include "measurement_models/isInFrustum.hpp"
+#include <gtsam/geometry/StereoPoint2.h>
 
 namespace rfs
 {
 
-MeasurementModel_6D::MeasurementModel_6D(){
+MeasurementModel_3D_stereo_orb::MeasurementModel_3D_stereo_orb(){
 
   config.probabilityOfDetection_ = 0.95;
   config.uniformClutterIntensity_ = 0.1;
@@ -43,7 +45,7 @@ MeasurementModel_6D::MeasurementModel_6D(){
 }
 
 
-MeasurementModel_6D::MeasurementModel_6D(::Eigen::Matrix3d &covZ){
+MeasurementModel_3D_stereo_orb::MeasurementModel_3D_stereo_orb(::Eigen::Matrix3d &covZ){
 
   setNoise(covZ);
   config.probabilityOfDetection_ = 0.95;
@@ -53,7 +55,7 @@ MeasurementModel_6D::MeasurementModel_6D(::Eigen::Matrix3d &covZ){
   config.rangeLimBuffer_ = 0.25;
 }
 
-MeasurementModel_6D::MeasurementModel_6D(double Sx, double Sy, double Sz){
+MeasurementModel_3D_stereo_orb::MeasurementModel_3D_stereo_orb(double Sx, double Sy, double Sz){
 
   Eigen::Matrix3d covZ;
   covZ <<  Sx, 0,  0,
@@ -67,14 +69,29 @@ MeasurementModel_6D::MeasurementModel_6D(double Sx, double Sy, double Sz){
   config.rangeLimBuffer_ = 0.25;
 }
 
-MeasurementModel_6D::~MeasurementModel_6D(){}
+MeasurementModel_3D_stereo_orb::~MeasurementModel_3D_stereo_orb(){}
 
-bool MeasurementModel_6D::measure(const Pose6d &pose,
+bool MeasurementModel_3D_stereo_orb::measure(const Pose6d &pose,
 				      const Landmark3d &landmark,
 				      Measurement3d &measurement,
 				      Eigen::Matrix3d *jacobian_wrt_lmk,
 				      Eigen::Matrix<double, 3, 7> *jacobian_wrt_pose) const{
 
+
+  auto pose_gtsam = to_gtsam(pose);
+  auto landmark_gtsam = to_gtsam(landmark);
+  gtsam::Point3  point_in_camera_frame = pose_gtsam.transformTo(landmark_gtsam);
+
+  Eigen::Matrix<double, 3,6> jacobian_wrt_pose_tmp;
+  auto stereopoint =  jacobian_wrt_pose? 
+      config.camera.camera.project2(point_in_camera_frame, jacobian_wrt_pose_tmp, jacobian_wrt_lmk):
+      config.camera.camera.project2(point_in_camera_frame, boost::none, jacobian_wrt_lmk);
+
+  if (jacobian_wrt_pose)
+  {
+    jacobian_wrt_pose->setZero();
+    jacobian_wrt_pose->block<3,6>(0,0) = jacobian_wrt_pose_tmp;
+  }
 
   Eigen::Vector3d mean, landmarkState;
   Eigen::Matrix3d H_lmk, landmarkUncertainty, cov;
@@ -87,8 +104,13 @@ bool MeasurementModel_6D::measure(const Pose6d &pose,
   Eigen::Quaterniond robotQ(pose.getRot());
   H_lmk = robotQ.conjugate().toRotationMatrix();
 
+ if(jacobian_wrt_lmk)
+  {
+    *jacobian_wrt_lmk = H_lmk*(*jacobian_wrt_lmk);
+  }
 
   mean= H_lmk * (landmarkState-robotPosition);
+
 
 
 
@@ -100,36 +122,45 @@ bool MeasurementModel_6D::measure(const Pose6d &pose,
   pose.getCov( robotUncertainty);
   landmark.get(landmarkState,landmarkUncertainty);
 
-  range = mean.norm();
-
-  H_robotrotation <<   0           , 2*mean(2)  , -2*mean(1), 0,
-		  	  	  	  -2*mean(2)  , 0          ,  2*mean(0), 0,
-					  2*mean(1)   , -2*mean(0) ,  0        , 0; //skew symmetric matrix
-
-  H_robot.block<3,3>(0,0) = -H_lmk;
-  H_robot.block<3,4>(0,3) = H_robotrotation;
+  // TODO add robot jacobian and uncertainty
+  assert(robotUncertainty.isApprox(Eigen::Matrix<double, 7,7>::Zero()));
 
 
-  cov = H_lmk * landmarkUncertainty * H_lmk.transpose() + H_robot * robotUncertainty * H_robot.transpose() + R_;
+  // H_robotrotation <<   0           , 2*mean(2)  , -2*mean(1), 0,
+		//   	  	  	  -2*mean(2)  , 0          ,  2*mean(0), 0,
+		// 			  2*mean(1)   , -2*mean(0) ,  0        , 0; //skew symmetric matrix
+  //
+  // H_robot.block<3,3>(0,0) = -H_lmk;
+  // H_robot.block<3,4>(0,3) = H_robotrotation;
+
+
+  cov = H_lmk * landmarkUncertainty * H_lmk.transpose() ; //+ H_robot * robotUncertainty * H_robot.transpose() + R_;
   measurement.set(mean, cov);
 
-  if(jacobian_wrt_lmk != NULL)
-    *jacobian_wrt_lmk = H_lmk;
 
   if(jacobian_wrt_pose != NULL)
+  {
+    std::cerr << "jacobian_wrt_pose not implemented yet" << std::endl;
+    throw std::runtime_error("jacobian_wrt_pose not implemented yet");
     *jacobian_wrt_pose = H_robot;
+  }
 
-  if(range > config.rangeLimMax_ || range < config.rangeLimMin_)
-    return false;
-  else
-    return true;
+  bool discard;
+  return probabilityOfDetection(pose, landmark, discard) > 0.0;
 }
 
-void MeasurementModel_6D::inverseMeasure(const Pose6d &pose,
+void MeasurementModel_3D_stereo_orb::inverseMeasure(const Pose6d &pose,
 					 const Measurement3d &measurement,
 					 Landmark3d &landmark) const{
 
-  Eigen::Vector3d measurementState, mean;
+  auto pose_gtsam = to_gtsam(pose);
+  auto landmark_gtsam = to_gtsam(landmark);
+  gtsam::StereoPoint2 stereopoint(measurement.get());
+
+  auto point_in_camera_frame = config.camera.camera.backproject(stereopoint);
+
+
+  Eigen::Vector3d mean;
   Eigen::Matrix3d measurementUncertainty, covariance, Hinv;
 
   Eigen::Vector3d robotPosition;
@@ -139,10 +170,9 @@ void MeasurementModel_6D::inverseMeasure(const Pose6d &pose,
   Hinv = robotQ.toRotationMatrix();
 
 
-  measurement.get(measurementState);
   this->getNoise(measurementUncertainty);
 
-  mean = Hinv*measurementState+robotPosition;
+  mean = Hinv*point_in_camera_frame+robotPosition;
 
 
   covariance = Hinv * measurementUncertainty * Hinv.transpose();
@@ -150,7 +180,7 @@ void MeasurementModel_6D::inverseMeasure(const Pose6d &pose,
 
 }
 
-double MeasurementModel_6D::probabilityOfDetection( const Pose6d &pose,
+double MeasurementModel_3D_stereo_orb::probabilityOfDetection( const Pose6d &pose,
 						    const Landmark3d &landmark,
 						    bool &isCloseToSensingLimit ) const{
 
@@ -166,7 +196,7 @@ double MeasurementModel_6D::probabilityOfDetection( const Pose6d &pose,
 
   range = diff.norm();
 
-  if( range <= config.rangeLimMax_ && range >= config.rangeLimMin_){
+  if( range <= config.rangeLimMax_ && range >= config.rangeLimMin_ && isInFrustum(landmark, pose, config.camera, NULL)){
     Pd = config.probabilityOfDetection_;
     if( range >= (config.rangeLimMax_ - config.rangeLimBuffer_ ) ||
 	range <= (config.rangeLimMin_ + config.rangeLimBuffer_ ) )
@@ -181,13 +211,13 @@ double MeasurementModel_6D::probabilityOfDetection( const Pose6d &pose,
   return Pd;
 }
 
-double MeasurementModel_6D::clutterIntensity( Measurement3d &z,
+double MeasurementModel_3D_stereo_orb::clutterIntensity( Measurement3d &z,
 					    int nZ) const{
   return config.uniformClutterIntensity_;
 }
 
 
-double MeasurementModel_6D::clutterIntensityIntegral( int nZ ) const{
+double MeasurementModel_3D_stereo_orb::clutterIntensityIntegral( int nZ ) const{
   double sensingVolume_ = 4.0/3.0 * PI * (pow(config.rangeLimMax_,3) - pow(config.rangeLimMin_,3));
   return ( config.uniformClutterIntensity_ * sensingVolume_ );
 }

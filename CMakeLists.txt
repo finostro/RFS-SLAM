@@ -261,6 +261,8 @@ ADD_LIBRARY(rfsslam
   src/MeasurementModel_RngBrg_amplitude.cpp
   src/MeasurementModel_XY.cpp
   src/MeasurementModel_6D.cpp
+  src/MeasurementModel_3D_stereo_orb.cpp
+  src/isInFrustum.cpp
   src/Visualizer6D.cpp
   src/MeasurementModel_VictoriaPark.cpp
   src/KalmanFilter_RngBrg_amplitude.cpp
@@ -301,6 +303,14 @@ ADD_EXECUTABLE(rbphdslam6dSim src/rbphdslam6dSim.cpp)
 TARGET_LINK_LIBRARIES(rbphdslam6dSim  ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} Threads::Threads   ${VTK_LIBRARIES})
 vtk_module_autoinit(
   TARGETS rbphdslam6dSim
+  MODULES ${VTK_LIBRARIES}
+)
+
+
+ADD_EXECUTABLE(rbphdslam6dSim_euroc src/rbphdslam6d_euroc.cpp)
+TARGET_LINK_LIBRARIES(rbphdslam6dSim_euroc  ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} Threads::Threads   ${VTK_LIBRARIES})
+vtk_module_autoinit(
+  TARGETS rbphdslam6dSim_euroc
   MODULES ${VTK_LIBRARIES}
 )
 

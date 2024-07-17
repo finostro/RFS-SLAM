@@ -608,26 +608,27 @@ void VectorGLMBSLAM6D::loadEuroc() {
 
 //		std::thread threadLeft(&ORB_SLAM3::ORBextractor::extract,
 //				mpORBextractorLeft, &imLeft_rect, &mask_left,
-//				&initial_component_.poses_[ni].keypoints_left,
-//				&initial_component_.poses_[ni].descriptors_left,
+//				keypoints_left,
+//				descriptors_left,
 //				&vLapping_left);
 //		std::thread threadRight(&ORB_SLAM3::ORBextractor::extract,
 //				mpORBextractorRight, &imRight_rect, &mask_right,
-//				&initial_component_.poses_[ni].keypoints_right,
-//				&initial_component_.poses_[ni].descriptors_right,
+//				keypoints_right,
+//				descriptors_right,
 //				&vLapping_right);
 //		threadLeft.join();
 //		threadRight.join();
 
+		cv::Mat desc_left , desc_right;
 		ORB_SLAM3::ORBextractor::extract(mpORBextractorLeft,
 						 &imLeft_rect, &mask_left,
-						&initial_component_.poses_[ni].keypoints_left,
-						&initial_component_.poses_[ni].descriptors_left,
+						keypoints_left,
+						desc_left,
 						&vLapping_left);
 		ORB_SLAM3::ORBextractor::extract(mpORBextractorRight,
 						 &imRight_rect, &mask_right,
-						&initial_component_.poses_[ni].keypoints_right,
-						&initial_component_.poses_[ni].descriptors_right,
+						keypoints_right,
+						desc_right,
 						&vLapping_right);
 		computeStereoMatches(initial_component_.poses_[ni]);
 

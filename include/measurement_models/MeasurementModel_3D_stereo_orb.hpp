@@ -31,13 +31,14 @@
 #pragma once
 
 #include "measurement_models/MeasurementModel.hpp"
+#include  "measurement_models/isInFrustum.hpp"
 
 namespace rfs{
 
 ////////// 2d Range-Bearing Measurement Model //////////
 
 /**
- * \class MeasurementModel_6D_stereo_orb
+ * \class MeasurementModel_3D_stereo_orb
  * A XYZ measurement model for 3D point landmarks, with Gaussian noise.
  * \f[ \mathbf{z} =
  * \begin{bmatrix} z_x \\ z_y \end{bmatrix} =
@@ -53,29 +54,33 @@ namespace rfs{
  * \author Felipe Inostroza, Keith Leung
  */
 
-class MeasurementModel_6D_stereo_orb : public MeasurementModel <Pose6d, Landmark3d, Measurement3d>{
+class MeasurementModel_3D_stereo_orb : public MeasurementModel <Pose6d, Landmark3d, Measurement3d>{
 
 public:
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-  /** \brief Configuration for this 2d MeasurementModel_6D_stereo_orb */
+  /** \brief Configuration for this 2d MeasurementModel_3D_stereo_orb */
   struct Config{
     double probabilityOfDetection_; /**< probability of detection, \f$ P_D \f$ */
     double uniformClutterIntensity_; /**< clutter intensity, \f$ c \f$, assumed to be constant over the sensing area */
     double rangeLimMax_; /**< sensing range limit, beyond which \f$ P_D = 0 \f$*/
     double rangeLimMin_; /**< sensing range limit, below which \f$ P_D = 0 \f$*/
     double rangeLimBuffer_; /**< Used to define a buffer zone around rangeLimMax_ and rangeLimMin_ to indicate a measurement is close to to the sensing limit */
+    Camera camera;
+    
   }config;
 
+
+
  /** Default constructor */
-  MeasurementModel_6D_stereo_orb();
+  MeasurementModel_3D_stereo_orb();
 
  /**
   * Constructor that sets the uncertainty (covariance) of the measurement model, \f$\mathbf{R}\f$
   * \param covZ measurement covariance, \f$\mathbf{R}\f$
   */
-  MeasurementModel_6D_stereo_orb(::Eigen::Matrix3d &covZ);
+  MeasurementModel_3D_stereo_orb(::Eigen::Matrix3d &covZ);
 
  /**
   * Constructor that sets the uncertainty (covariance) of the measurement model,
@@ -85,10 +90,10 @@ public:
   * \param Sy y variance \f$\sigma_{z_y}^2\f$
   * \param Sz z variance \f$\sigma_{z_z}^2\f$
   */
-  MeasurementModel_6D_stereo_orb(double Sx, double Sy, double Sz);
+  MeasurementModel_3D_stereo_orb(double Sx, double Sy, double Sz);
 
  /** Default destructor */
-  ~MeasurementModel_6D_stereo_orb();
+  ~MeasurementModel_3D_stereo_orb();
 
   /**
    * Obtain a measurement from a given robot pose and landmark position
@@ -103,6 +108,8 @@ public:
    * \param[out] jacobian_wrt_pose if not NULL, the pointed-to matrix is overwritten
    * by the Jacobian of the measurement model w.r.t. the robot state evaluated at
    * \f$\mathbf{x}\f$ and \f$\mathbf{m}\f$.
+   * This jacobian is not used in the RBPHDFilter, also it is written in Euler Rotation Vector format (i.e., \theta*e)
+   * I.E., last row and column are zero.
    * \return true if a valid measurement is produced
    */
   bool measure( const Pose6d &pose, const Landmark3d &landmark,

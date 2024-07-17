@@ -34,6 +34,7 @@
 #include "RBPHDFilter.hpp"
 #include "RBLMBFilter.hpp"
 #include "ProcessModel_Odometry6D.hpp"
+#include "measurement_models/MeasurementModel_3D_stereo_orb.hpp"
 #include "measurement_models/MeasurementModel_6D.hpp"
 #include <thread>
 #include <mutex>
@@ -85,6 +86,9 @@ public:
         void update(RBPHDFilter<MotionModel_Odometry6d, StaticProcessModel<Landmark3d>,
                         MeasurementModel_6D,
                         KalmanFilter<StaticProcessModel<Landmark3d>, MeasurementModel_6D> > *pFilter_);
+        void update(RBPHDFilter<MotionModel_Odometry6d, StaticProcessModel<Landmark3d>,
+                        MeasurementModel_3D_stereo_orb,
+                        KalmanFilter<StaticProcessModel<Landmark3d>, MeasurementModel_3D_stereo_orb> > *pFilter_);
         void update(RBLMBFilter<MotionModel_Odometry6d, StaticProcessModel<Landmark3d>,
                         MeasurementModel_6D,
                         KalmanFilter<StaticProcessModel<Landmark3d>, MeasurementModel_6D> > *pFilter_);
