@@ -850,11 +850,13 @@ void loadEuroc() {
 			vstrImageRight.push_back(pathCam1 + "/" + ss.str() + ".png");
 			double t;
 			ss >> t;
-			vTimestampsCam.push_back(t / 1e9);
+			static double t_0 = t/1e9;
+			vTimestampsCam.push_back(t / 1e9 - t_0);
 
 		}
 	}
 	nImages = vstrImageLeft.size();
+	kMax_ = nImages;
 
 	cv::Mat imLeft, imRight;
 	cv::Mat imLeft_rect, imRight_rect;
@@ -960,9 +962,9 @@ void loadEuroc() {
 		cv::drawKeypoints(imLeft_rect,
 				keypoints_left, imLeftKeys,
 				kpColor);
-		//cv::imshow("matches", imMatches);
+		cv::imshow("matches", imMatches);
 
-		//cv::waitKey(1); // Wait for a keystroke in the window
+		cv::waitKey(1); // Wait for a keystroke in the window
 		std::cout << ni+1 << "/" << nImages << "                                   \r";
 
 	}
