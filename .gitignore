@@ -4,3 +4,5 @@ CMakeFiles/
 *.orig
 *.bak
 cfg/*.xml
+.supermaven
+.cache
