@@ -1,0 +1,65 @@
+
+config:
+  use_gui: 1
+  logging:
+    logResultsToFile: 1
+    logTimingToFile: 1
+    logDirPrefix: data/rbphdslam6d
+  timesteps: 3000
+  sec_per_timestep: 0.1
+  trajectory:
+    nSegments: 5
+    max_dx_per_sec: 0.30
+    max_dy_per_sec: 0.10
+    max_dz_per_sec: 0.10
+    min_dx_per_sec: 0.10
+    max_dqx_per_sec: 0.10
+    max_dqy_per_sec: 0.05
+    max_dqz_per_sec: 0.050
+    max_dqw_per_sec: 0.050
+    vardx: 0.00200
+    vardy: 0.00200
+    vardz: 0.00200
+    vardqx: 0.00200
+    vardqy: 0.00200
+    vardqz: 0.00200
+    vardqw: 0.00200
+  landmarks:
+    nLandmarks: 100
+    varlmx: 0.0002
+    varlmy: 0.0002
+    varlmz: 0.0002
+  measurements:
+    rangeLimitMax: 10.0
+    rangeLimitMin: 0.5
+    rangeLimitBuffer: 0.0
+    probDetection: 0.950
+    clutterIntensity: 5e-10
+    varzx: 0.0005
+    varzy: 0.0005
+    varzz: 0.0005
+  filter:
+    nParticles: 1000
+    predict:
+      processNoiseInflationFactor: 1.0
+      birthGaussianWeight: 0.01
+    update:
+      measurementNoiseInflationFactor: 10.0
+      KalmanFilter:
+        innovationThreshold:
+          range: 1.0
+          bearing: 0.2
+      GaussianCreateInnovMDThreshold: 3.0
+    weighting:
+      nEvalPt: 15
+      minWeight: 0.75
+      threshold: 3.0
+      useClusterProcess: 0
+    resampling:
+      effNParticle: 500.0
+      minTimesteps: 2
+    merge:
+      threshold: 1.0
+      covInflationFactor: 1.5
+    prune:
+      threshold: 0.005

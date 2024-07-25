@@ -26,10 +26,10 @@
     <vardx>0.00200</vardx> <!-- variance in x displacement per second -->
     <vardy>0.00200</vardy> <!-- variance in y displacement per second -->
     <vardz>0.00200</vardz> <!-- variance in z displacement per second -->
-    <vardqx>0.00200</vardx> <!-- variance in qx rotation per second -->
-    <vardqy>0.00200</vardy> <!-- variance in qy rotation per second -->
-    <vardqz>0.00200</vardz> <!-- variance in qz rotation per second -->
-    <vardqw>0.00200</vardw> <!-- variance in qz rotation per second -->
+    <vardqx>0.00200</vardqx> <!-- variance in qx rotation per second -->
+    <vardqy>0.00200</vardqy> <!-- variance in qy rotation per second -->
+    <vardqz>0.00200</vardqz> <!-- variance in qz rotation per second -->
+    <vardqw>0.00200</vardqw> <!-- variance in qz rotation per second -->
   </trajectory>
 
   <landmarks>
