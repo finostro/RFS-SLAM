@@ -41,6 +41,16 @@
 #include <stdio.h>
 #include <string>
 #include <sys/ioctl.h>
+#include <yaml-cpp/yaml.h>
+#include "misc/EigenYamlSerialization.hpp"
+
+#include<opencv2/core/core.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include "opencv2/imgproc.hpp"
+#include <opencv2/core/eigen.hpp>
+#include <opencv2/calib3d.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/features2d.hpp>
 
 #include <external/Converter.h>
 #include <external/ORBextractor.h>
@@ -105,141 +115,189 @@ public:
   bool readConfigFile(const char *fileName) {
 
     cfgFileName_ = fileName;
+    YAML::Node node = YAML::LoadFile(fileName);
 
-    boost::property_tree::ptree pt;
-    boost::property_tree::xml_parser::read_xml(fileName, pt);
-
-    logResultsToFile_ = false;
-    if (pt.get("config.logging.logResultsToFile", 0) == 1)
-      logResultsToFile_ = true;
-    logTimingToFile_ = false;
-    if (pt.get("config.logging.logTimingToFile", 0) == 1)
-      logTimingToFile_ = true;
-    logDirPrefix_ = pt.get<std::string>("config.logging.logDirPrefix", "./");
+    logResultsToFile_ = node["config"]["logging"]["logResultsToFile"].as<bool>();
+    logTimingToFile_ = node["config"]["logging"]["logTimingToFile"].as<bool>();
+    logDirPrefix_ = node["config"]["logging"]["logDirPrefix"].as<std::string>();
     if (*logDirPrefix_.rbegin() != '/')
       logDirPrefix_ += '/';
 
-    use_gui_ = false;
-    if (pt.get<bool>("config.use_gui") != 0) {
-      use_gui_ = true;
-    }
-    kMax_ = pt.get<int>("config.timesteps");
-    dT_ = pt.get<double>("config.sec_per_timestep");
+    use_gui_ = node["config"]["use_gui"].as<bool>();
+    kMax_ = node["config"]["timesteps"].as<int>();
+    dT_ = node["config"]["sec_per_timestep"].as<double>();
     dTimeStamp_ = TimeStamp(dT_);
 
-    nSegments_ = pt.get<int>("config.trajectory.nSegments");
-    max_dx_ = pt.get<double>("config.trajectory.max_dx_per_sec");
-    max_dy_ = pt.get<double>("config.trajectory.max_dy_per_sec");
-    max_dz_ = pt.get<double>("config.trajectory.max_dz_per_sec");
-    max_dqx_ = pt.get<double>("config.trajectory.max_dqx_per_sec");
-    max_dqy_ = pt.get<double>("config.trajectory.max_dqy_per_sec");
-    max_dqz_ = pt.get<double>("config.trajectory.max_dqz_per_sec");
-    max_dqw_ = pt.get<double>("config.trajectory.max_dqw_per_sec");
-    min_dx_ = pt.get<double>("config.trajectory.min_dx_per_sec");
-    vardx_ = pt.get<double>("config.trajectory.vardx");
-    vardy_ = pt.get<double>("config.trajectory.vardy");
-    vardz_ = pt.get<double>("config.trajectory.vardz");
-    vardqx_ = pt.get<double>("config.trajectory.vardqx");
-    vardqy_ = pt.get<double>("config.trajectory.vardqy");
-    vardqz_ = pt.get<double>("config.trajectory.vardqz");
-    vardqw_ = pt.get<double>("config.trajectory.vardqw");
+    nSegments_ = node["config"]["trajectory"]["nSegments"].as<int>();
+    max_dx_ = node["config"]["trajectory"]["max_dx_per_sec"].as<double>();
+    max_dy_ = node["config"]["trajectory"]["max_dy_per_sec"].as<double>();
+    max_dz_ = node["config"]["trajectory"]["max_dz_per_sec"].as<double>();
+    max_dqx_ = node["config"]["trajectory"]["max_dqx_per_sec"].as<double>();
+    max_dqy_ = node["config"]["trajectory"]["max_dqy_per_sec"].as<double>();
+    max_dqz_ = node["config"]["trajectory"]["max_dqz_per_sec"].as<double>();
+    max_dqw_ = node["config"]["trajectory"]["max_dqw_per_sec"].as<double>();
+    min_dx_ = node["config"]["trajectory"]["min_dx_per_sec"].as<double>();
+    vardx_ = node["config"]["trajectory"]["vardx"].as<double>();
+    vardy_ = node["config"]["trajectory"]["vardy"].as<double>();
+    vardz_ = node["config"]["trajectory"]["vardz"].as<double>();
+    vardqx_ = node["config"]["trajectory"]["vardqx"].as<double>();
+    vardqy_ = node["config"]["trajectory"]["vardqy"].as<double>();
+    vardqz_ = node["config"]["trajectory"]["vardqz"].as<double>();
+    vardqw_ = node["config"]["trajectory"]["vardqw"].as<double>();
 
-    nLandmarks_ = pt.get<int>("config.landmarks.nLandmarks");
-    varlmx_ = pt.get<double>("config.landmarks.varlmx");
-    varlmy_ = pt.get<double>("config.landmarks.varlmy");
-    varlmz_ = pt.get<double>("config.landmarks.varlmz");
+    nLandmarks_ = node["config"]["landmarks"]["nLandmarks"].as<int>();
+    varlmx_ = node["config"]["landmarks"]["varlmx"].as<double>();
+    varlmy_ = node["config"]["landmarks"]["varlmy"].as<double>();
+    varlmz_ = node["config"]["landmarks"]["varlmz"].as<double>();
 
-    rangeLimitMax_ = pt.get<double>("config.measurements.rangeLimitMax");
-    rangeLimitMin_ = pt.get<double>("config.measurements.rangeLimitMin");
-    rangeLimitBuffer_ = pt.get<double>("config.measurements.rangeLimitBuffer");
-    Pd_ = pt.get<double>("config.measurements.probDetection");
-    c_ = pt.get<double>("config.measurements.clutterIntensity");
-    varzx_ = pt.get<double>("config.measurements.varzx");
-    varzy_ = pt.get<double>("config.measurements.varzy");
-    varzz_ = pt.get<double>("config.measurements.varzz");
+    rangeLimitMax_ = node["config"]["measurements"]["rangeLimitMax"].as<double>();
+    rangeLimitMin_ = node["config"]["measurements"]["rangeLimitMin"].as<double>();
+    rangeLimitBuffer_ = node["config"]["measurements"]["rangeLimitBuffer"].as<double>();
+    Pd_ = node["config"]["measurements"]["probDetection"].as<double>();
+    c_ = node["config"]["measurements"]["clutterIntensity"].as<double>();
+    varzx_ = node["config"]["measurements"]["varzx"].as<double>();
+    varzy_ = node["config"]["measurements"]["varzy"].as<double>();
+    varzz_ = node["config"]["measurements"]["varzz"].as<double>();
+    
+    nParticles_ = node["config"]["filter"]["nParticles"].as<int>();
 
-    nParticles_ = pt.get("config.filter.nParticles", 200);
+    pNoiseInflation_ = node["config"]["filter"]["predict"]["processNoiseInflationFactor"].as<double>();
+    birthGaussianWeight_ = node["config"]["filter"]["predict"]["birthGaussianWeight"].as<double>();
 
-    pNoiseInflation_ = pt.get("config.filter.predict.processNoiseInflationFactor", 1.0);
-    birthGaussianWeight_ = pt.get("config.filter.predict.birthGaussianWeight", 0.01);
+    zNoiseInflation_ = node["config"]["filter"]["update"]["measurementNoiseInflationFactor"].as<double>();
+    innovationRangeThreshold_ = node["config"]["filter"]["update"]["KalmanFilter"]["innovationThreshold"]["range"].as<double>();
+    innovationBearingThreshold_ = node["config"]["filter"]["update"]["KalmanFilter"]["innovationThreshold"]["bearing"].as<double>();
+    newGaussianCreateInnovMDThreshold_ = node["config"]["filter"]["update"]["GaussianCreateInnovMDThreshold"].as<double>();
 
-    zNoiseInflation_ = pt.get("config.filter.update.measurementNoiseInflationFactor", 1.0);
-    innovationRangeThreshold_ = pt.get<double>("config.filter.update.KalmanFilter.innovationThreshold.range");
-    innovationBearingThreshold_ = pt.get<double>("config.filter.update.KalmanFilter.innovationThreshold.bearing");
-    newGaussianCreateInnovMDThreshold_ = pt.get<double>("config.filter.update.GaussianCreateInnovMDThreshold");
+    importanceWeightingEvalPointCount_ = node["config"]["filter"]["weighting"]["nEvalPt"].as<int>();
+    importanceWeightingEvalPointGuassianWeight_ = node["config"]["filter"]["weighting"]["minWeight"].as<double>();
+    importanceWeightingMeasurementLikelihoodMDThreshold_ = node["config"]["filter"]["weighting"]["threshold"].as<double>();
+    useClusterProcess_ = node["config"]["filter"]["weighting"]["useClusterProcess"].as<bool>();
+    
+    effNParticleThreshold_ = node["config"]["filter"]["resampling"]["effNParticle"].as<double>();
+    minUpdatesBeforeResample_ = node["config"]["filter"]["resampling"]["minTimesteps"].as<int>();
 
-    importanceWeightingEvalPointCount_ = pt.get("config.filter.weighting.nEvalPt", 15);
-    importanceWeightingEvalPointGuassianWeight_ = pt.get("config.filter.weighting.minWeight", 0.75);
-    importanceWeightingMeasurementLikelihoodMDThreshold_ = pt.get("config.filter.weighting.threshold", 3.0);
-    useClusterProcess_ = false;
-    if (pt.get("config.filter.weighting.useClusterProcess", 0) == 1)
-      useClusterProcess_ = true;
+    gaussianMergingThreshold_ = node["config"]["filter"]["merge"]["threshold"].as<double>();
+    gaussianMergingCovarianceInflationFactor_ = node["config"]["filter"]["merge"]["covInflationFactor"].as<double>();
 
-    effNParticleThreshold_ = pt.get("config.filter.resampling.effNParticle", nParticles_);
-    minUpdatesBeforeResample_ = pt.get("config.filter.resampling.minTimesteps", 1);
+    gaussianPruningThreshold_ = node["config"]["filter"]["prune"]["threshold"].as<double>();
 
-    gaussianMergingThreshold_ = pt.get<double>("config.filter.merge.threshold");
-    gaussianMergingCovarianceInflationFactor_ = pt.get("config.filter.merge.covInflationFactor", 1.0);
+    eurocFolder_ = node["config"]["euroc"]["folder"].as<std::string>();
+    eurocTimestampsFilename_ = node["config"]["euroc"]["timestampsFilename"].as<std::string>();
+    
+    
+	for (auto camera : node["camera_params"]) {
+		CameraParams params;
+		params.fx = camera["fx"].as<double>();
+		params.fy = camera["fy"].as<double>();
+		params.cx = camera["cx"].as<double>();
+		params.cy = camera["cy"].as<double>();
+		params.k1 = camera["k1"].as<double>();
+		params.k2 = camera["k2"].as<double>();
+		params.p1 = camera["p1"].as<double>();
+		params.p2 = camera["p2"].as<double>();
+		params.originalImSize.width = camera["width"].as<int>();
+		params.originalImSize.height = camera["height"].as<int>();
 
-    gaussianPruningThreshold_ = pt.get("config.filter.prune.threshold", birthGaussianWeight_);
+		params.newImSize = params.originalImSize;
 
-    eurocFolder_ = pt.get<std::string>("config.euroc.folder");
-    eurocTimestampsFilename_ = pt.get<std::string>("config.euroc.timestampsFilename");
+		if (!YAML::convert<Eigen::MatrixXd>::decode(camera["cv_c0_to_camera"],
+				params.cv_c0_to_camera_eigen)) {
+			std::cerr << "could not load principal_point \n";
+			exit(1);
+		}
+		cv::eigen2cv(params.cv_c0_to_camera_eigen, params.cv_c0_to_camera);
 
-    auto cameras = pt.get_child("config.cameras");
-    for (auto camera : cameras) {
-      CameraParams camera_param;
-      camera_param.fx = camera.second.get<double>("fx");
-      camera_param.fy = camera.second.get<double>("fy");
-      camera_param.cx = camera.second.get<double>("cx");
-      camera_param.cy = camera.second.get<double>("cy");
-      camera_param.k1 = camera.second.get<double>("k1");
-      camera_param.k2 = camera.second.get<double>("k2");
-      camera_param.p1 = camera.second.get<double>("p1");
-      camera_param.p2 = camera.second.get<double>("p2");
-      camera_param.originalImSize.width = camera.second.get<int>("originalImSize.width");
-      camera_param.originalImSize.height = camera.second.get<int>("originalImSize.height");
-      camera_param.newImSize.width = camera.second.get<int>("newImSize.width");
-      camera_param.newImSize.height = camera.second.get<int>("newImSize.height");
-      camera_param.opencv_distort_coeffs = cv::Mat(camera.second.get<int>("opencv_distort_coeffs.rows"),
-                                                   camera.second.get<int>("opencv_distort_coeffs.cols"), CV_64FC1);
-      for (int i = 0; i < camera_param.opencv_distort_coeffs.rows; i++) {
-        for (int j = 0; j < camera_param.opencv_distort_coeffs.cols; j++) {
-          camera_param.opencv_distort_coeffs.at<double>(i, j) =
-              camera.second.get<double>("opencv_distort_coeffs.data[" + std::to_string(i) + "][" + std::to_string(j) + "]");
-        }
-      }
-      camera_param.opencv_calibration =
-          cv::Mat(camera.second.get<int>("opencv_calibration.rows"), camera.second.get<int>("opencv_calibration.cols"), CV_64FC1);
-      for (int i = 0; i < camera_param.opencv_calibration.rows; i++) {
-        for (int j = 0; j < camera_param.opencv_calibration.cols; j++) {
-          camera_param.opencv_calibration.at<double>(i, j) =
-              camera.second.get<double>("opencv_calibration.data[" + std::to_string(i) + "][" + std::to_string(j) + "]");
-        }
-      }
-      camera_param.M1 = cv::Mat(camera.second.get<int>("M1.rows"), camera.second.get<int>("M1.cols"), CV_64FC1);
-      for (int i = 0; i < camera_param.M1.rows; i++) {
-        for (int j = 0; j < camera_param.M1.cols; j++) {
-          camera_param.M1.at<double>(i, j) =
-              camera.second.get<double>("M1.data[" + std::to_string(i) + "][" + std::to_string(j) + "]");
-        }
-      }
-      camera_param.M2 = cv::Mat(camera.second.get<int>("M2.rows"), camera.second.get<int>("M2.cols"), CV_64FC1);
-      for (int i = 0; i < camera_param.M2.rows; i++) {
-        for (int j = 0; j < camera_param.M2.cols; j++) {
-          camera_param.M2.at<double>(i, j) =
-              camera.second.get<double>("M2.data[" + std::to_string(i) + "][" + std::to_string(j) + "]");
-        }
-      }
-      camera_param.cv_c0_to_camera =
-          cv::Mat(camera.second.get<int>("cv_c0_to_camera.rows"), camera.second.get<int>("cv_c0_to_camera.cols"), CV_64FC1);
-      for (int i = 0; i < camera_param.cv_c0_to_camera.rows; i++) {
-        for (int j = 0; j < camera_param.cv_c0_to_camera.cols; j++) {
-          camera_param.cv_c0_to_camera.at<double>(i, j) =
-              camera.second.get<double>("cv_c0_to_camera.data[" + std::to_string(i) + "][" + std::to_string(j) + "]");
-        }
-      }
-    }
+		cv::Mat dist_coeffs(4, 1, CV_64F);
+		dist_coeffs.at<float>(0, 0) = params.k1;
+		dist_coeffs.at<float>(1, 0) = params.k2;
+		dist_coeffs.at<float>(2, 0) = params.p1;
+		dist_coeffs.at<float>(3, 0) = params.p2;
+		params.opencv_distort_coeffs =
+				(cv::Mat_<double>(4, 1) << params.k1, params.k2, params.p1, params.p2);
+
+		params.opencv_calibration =
+				(cv::Mat_<double>(3, 3) << (float) params.fx, 0.f, (float) params.cx, 0.f, (float) params.fy, (float) params.cy, 0.f, 0.f, 1.f);
+
+		camera_parameters_.push_back(params);
+	}
+
+	cv::Mat cvTlr = camera_parameters_[1].cv_c0_to_camera;
+	Sophus::SE3d Tlr = ORB_SLAM3::Converter::toSophusd(cvTlr);
+
+	cv::Mat R12 = cvTlr.rowRange(0, 3).colRange(0, 3);
+	R12.convertTo(R12, CV_64F);
+	cv::Mat t12 = cvTlr.rowRange(0, 3).col(3);
+	t12.convertTo(t12, CV_64F);
+
+	stereo_baseline_ = Tlr.translation().norm();
+	stereo_baseline_f_ = stereo_baseline_
+			* camera_parameters_[0].fx;
+
+	Eigen::Vector2d principal_point = { camera_parameters_[0].cx,
+			camera_parameters_[0].cy };
+
+	g2o::CameraParameters *cam_params = new g2o::CameraParameters(
+			camera_parameters_[0].fx, principal_point,
+			stereo_baseline_);
+	cam_params->setId(0);
+
+	cv::Mat R_r1_u1, R_r2_u2;
+	cv::Mat P1, P2, Q;
+
+	cv::stereoRectify(camera_parameters_[0].opencv_calibration,
+			camera_parameters_[0].opencv_distort_coeffs,
+			camera_parameters_[1].opencv_calibration,
+			camera_parameters_[1].opencv_distort_coeffs,
+			camera_parameters_[0].newImSize, R12, t12, R_r1_u1, R_r2_u2,
+			P1, P2, Q, cv::CALIB_ZERO_DISPARITY, -1,
+			camera_parameters_[0].newImSize);
+
+	cv::initUndistortRectifyMap(camera_parameters_[0].opencv_calibration,
+			camera_parameters_[0].opencv_distort_coeffs, R_r1_u1,
+			P1.rowRange(0, 3).colRange(0, 3),
+			camera_parameters_[0].newImSize, CV_32F,
+			camera_parameters_[0].M1, camera_parameters_[0].M2);
+	cv::initUndistortRectifyMap(camera_parameters_[1].opencv_calibration,
+			camera_parameters_[1].opencv_distort_coeffs, R_r2_u2,
+			P2.rowRange(0, 3).colRange(0, 3),
+			camera_parameters_[1].newImSize, CV_32F,
+			camera_parameters_[1].M1, camera_parameters_[1].M2);
+
+	std::cout << "cam0 opencv_calibration: "
+			<< camera_parameters_[0].opencv_calibration << "\n";
+	std::cout << "cam1 opencv_calibration: "
+			<< camera_parameters_[1].opencv_calibration << "\n";
+	std::cout << "cam0 opencv_distort_coeffs: "
+			<< camera_parameters_[0].opencv_distort_coeffs << "\n";
+	std::cout << "cam1 opencv_distort_coeffs: "
+			<< camera_parameters_[1].opencv_distort_coeffs << "\n";
+
+//    std::cout << "cam0 M1: " << camera_parameters_[0].M1 << "\n";
+//    std::cout << "cam0 M2: " << camera_parameters_[0].M2 << "\n";
+//    std::cout << "cam1 M1: " << camera_parameters_[1].M1 << "\n";
+//    std::cout << "cam1 M2: " << camera_parameters_[1].M2 << "\n";
+
+	orb_extractor.nFeatures = node["ORBextractor.nFeatures"].as<int>();
+	orb_extractor.scaleFactor = node["ORBextractor.scaleFactor"].as<
+			double>();
+	orb_extractor.nLevels = node["ORBextractor.nLevels"].as<int>();
+	orb_extractor.iniThFAST = node["ORBextractor.iniThFAST"].as<int>();
+	orb_extractor.minThFAST = node["ORBextractor.minThFAST"].as<int>();
+	stereo_init_max_depth_ = node["stereo_init_max_depth"].as<double>();
+
+	mpORBextractorLeft = new ORB_SLAM3::ORBextractor(
+			orb_extractor.nFeatures, orb_extractor.scaleFactor,
+			orb_extractor.nLevels, orb_extractor.iniThFAST,
+			orb_extractor.minThFAST);
+	mpORBextractorRight = new ORB_SLAM3::ORBextractor(
+			orb_extractor.nFeatures, orb_extractor.scaleFactor,
+			orb_extractor.nLevels, orb_extractor.iniThFAST,
+			orb_extractor.minThFAST);
+
+	orbExtractorInvScaleFactors = mpORBextractorLeft->GetInverseScaleFactors();
+	orbExtractorScaleFactors = mpORBextractorLeft->GetScaleFactors();
+
 
     return true;
   }
@@ -1296,6 +1354,16 @@ private:
 
   std::vector<double> vTimestampsCam;
   int nImages;
+
+		// ORB params
+		struct ORBExtractor {
+			int nFeatures;
+			double scaleFactor;
+			int nLevels;
+			int iniThFAST;
+			int minThFAST;
+
+		} orb_extractor;
 
   ORB_SLAM3::ORBextractor *mpORBextractorLeft;
   ORB_SLAM3::ORBextractor *mpORBextractorRight;
