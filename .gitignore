@@ -6,3 +6,4 @@ CMakeFiles/
 cfg/*.xml
 .supermaven
 .cache
+compile_commands.json
