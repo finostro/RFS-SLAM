@@ -1167,6 +1167,14 @@ namespace ORB_SLAM3
         return monoIndex;
     }
 
+     void ORBextractor::extract(ORBextractor *extractor, cv::Mat * _image, cv::Mat *_mask, vector<KeyPoint> *_keypoints,
+    		 cv::Mat *_descriptors, std::vector<int> *vLappingArea)
+        {
+
+    	extractor->operator ()( *_image, *_mask,  *_keypoints, *_descriptors, *vLappingArea);
+        }
+
+
     void ORBextractor::ComputePyramid(cv::Mat image)
     {
         for (int level = 0; level < nlevels; ++level)

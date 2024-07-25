@@ -278,6 +278,8 @@ ADD_LIBRARY(rfsslam
   src/AssociationSampler.cpp
   src/OrbslamMapPoint.cpp
   src/OrbslamPose.cpp
+  src/external/ORBextractor.cc
+  src/external/Converter.cc
   )
   
   

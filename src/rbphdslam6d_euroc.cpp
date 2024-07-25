@@ -211,6 +211,54 @@ public:
 
 		eurocFolder_ = pt.get<std::string>("config.euroc.folder");
 		eurocTimestampsFilename_ = pt.get<std::string>("config.euroc.timestampsFilename");
+		
+		auto cameras = pt.get_child("config.cameras");
+		for (auto camera : cameras) {
+			CameraParams camera_param;
+			camera_param.fx = camera.second.get<double>("fx");
+			camera_param.fy = camera.second.get<double>("fy");
+			camera_param.cx = camera.second.get<double>("cx");
+			camera_param.cy = camera.second.get<double>("cy");
+			camera_param.k1 = camera.second.get<double>("k1");
+			camera_param.k2 = camera.second.get<double>("k2");
+			camera_param.p1 = camera.second.get<double>("p1");
+			camera_param.p2 = camera.second.get<double>("p2");
+			camera_param.originalImSize.width = camera.second.get<int>("originalImSize.width");
+			camera_param.originalImSize.height = camera.second.get<int>("originalImSize.height");
+			camera_param.newImSize.width = camera.second.get<int>("newImSize.width");
+			camera_param.newImSize.height = camera.second.get<int>("newImSize.height");
+			camera_param.opencv_distort_coeffs = cv::Mat(camera.second.get<int>("opencv_distort_coeffs.rows"), camera.second.get<int>("opencv_distort_coeffs.cols"), CV_64FC1);
+			for (int i = 0; i < camera_param.opencv_distort_coeffs.rows; i++) {
+				for (int j = 0; j < camera_param.opencv_distort_coeffs.cols; j++) {
+					camera_param.opencv_distort_coeffs.at<double>(i, j) = camera.second.get<double>("opencv_distort_coeffs.data[" + std::to_string(i) + "][" + std::to_string(j) + "]");
+				}
+			}
+			camera_param.opencv_calibration = cv::Mat(camera.second.get<int>("opencv_calibration.rows"), camera.second.get<int>("opencv_calibration.cols"), CV_64FC1);
+			for (int i = 0; i < camera_param.opencv_calibration.rows; i++) {
+				for (int j = 0; j < camera_param.opencv_calibration.cols; j++) {
+					camera_param.opencv_calibration.at<double>(i, j) = camera.second.get<double>("opencv_calibration.data[" + std::to_string(i) + "][" + std::to_string(j) + "]");
+				}
+			}
+			camera_param.M1 = cv::Mat(camera.second.get<int>("M1.rows"), camera.second.get<int>("M1.cols"), CV_64FC1);
+			for (int i = 0; i < camera_param.M1.rows; i++) {
+				for (int j = 0; j < camera_param.M1.cols; j++) {
+					camera_param.M1.at<double>(i, j) = camera.second.get<double>("M1.data[" + std::to_string(i) + "][" + std::to_string(j) + "]");
+				}
+			}
+			camera_param.M2 = cv::Mat(camera.second.get<int>("M2.rows"), camera.second.get<int>("M2.cols"), CV_64FC1);
+			for (int i = 0; i < camera_param.M2.rows; i++) {
+				for (int j = 0; j < camera_param.M2.cols; j++) {
+					camera_param.M2.at<double>(i, j) = camera.second.get<double>("M2.data[" + std::to_string(i) + "][" + std::to_string(j) + "]");
+				}
+			}
+			camera_param.cv_c0_to_camera = cv::Mat(camera.second.get<int>("cv_c0_to_camera.rows"), camera.second.get<int>("cv_c0_to_camera.cols"), CV_64FC1);
+			for (int i = 0; i < camera_param.cv_c0_to_camera.rows; i++) {
+				for (int j = 0; j < camera_param.cv_c0_to_camera.cols; j++) {
+					camera_param.cv_c0_to_camera.at<double>(i, j) = camera.second.get<double>("cv_c0_to_camera.data[" + std::to_string(i) + "][" + std::to_string(j) + "]");
+				}
+			}
+		}
+
 
 		return true;
 	}
@@ -1432,6 +1480,7 @@ int main(int argc, char* argv[]) {
   
 	std::cout << "Trajectory: " << trajNum << std::endl;
 
+	sim.loadEuroc();
 	sim.exportSimData();
 	sim.setupRBPHDFilter();
 
