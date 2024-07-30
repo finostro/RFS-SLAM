@@ -1,9 +1,12 @@
 
 config:
-  use_gui: 1
+  euroc:
+    folder: /home/finostro/euroc_dataset/V2_01_easy
+    timestampsFilename: /home/finostro/euroc_dataset/EuRoC_TimeStamps/V2_01_easy.txt
+  use_gui: true
   logging:
-    logResultsToFile: 1
-    logTimingToFile: 1
+    logResultsToFile: true
+    logTimingToFile: true
     logDirPrefix: data/rbphdslam6d
   timesteps: 3000
   sec_per_timestep: 0.1
@@ -54,7 +57,7 @@ config:
       nEvalPt: 15
       minWeight: 0.75
       threshold: 3.0
-      useClusterProcess: 0
+      useClusterProcess: false
     resampling:
       effNParticle: 500.0
       minTimesteps: 2
@@ -63,3 +66,79 @@ config:
       covInflationFactor: 1.5
     prune:
       threshold: 0.005
+base_link_to_cam0:
+  cols: 4
+  rows: 4
+  data: [0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
+         0.999557249008, 0.0149672133247, 0.025715529948, -0.064676986768,
+        -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
+         0.0, 0.0, 0.0, 1.0]
+
+# Camera calibration and distortion parameters (OpenCV) 
+camera_params:
+   - fx:  458.654
+     fy: 457.296
+     cx: 367.215
+     cy: 248.375
+     k1: -0.28340811
+     k2: 0.07395907
+     p1: 0.00019359
+     p2: 1.76187114e-05
+     width: 752
+     height: 480
+     cv_c0_to_camera: 
+        rows: 4
+        cols: 4
+        data: [1.0,0.,0.,0.0,
+               0.,1.0,0.,0.0,
+               0.,0.,1.0,0.0,
+               0,0,0,1.0]
+   - fx:  457.587
+     fy: 456.134
+     cx: 379.999
+     cy: 255.238
+     k1: -0.28368365
+     k2: 0.07451284
+     p1: -0.00010473
+     p2: -3.55590700e-05
+     width: 752
+     height: 480
+     cv_c0_to_camera: 
+        rows: 4
+        cols: 4
+        data: [0.999997256477797,-0.002317135723275,-0.000343393120620,0.110074137800478,
+               0.002312067192432,0.999898048507103,-0.014090668452683,-0.000156612054392,
+               0.000376008102320,0.014089835846691,0.999900662638081,0.000889382785432,
+               0,0,0,1.000000000000000]
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 800
+
+# ORB Extractor: Scale factor between levels in the scale pyramid 	
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid	
+ORBextractor.nLevels: 8
+
+# ORB Extractor: Fast threshold
+# Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
+# Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
+# You can lower these values if your images have low contrast			
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7 #7
+
+stereo_init_max_depth: 60.0
+
+# Camera frames per second 
+Camera.fps: 20
+camera.focal_length: 458.0
+camera.baseline: 0.110074
+camera.principal_point: 
+        rows: 2
+        cols: 1
+        data: [379.999 , 255.238]
+

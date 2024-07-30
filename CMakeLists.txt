@@ -174,7 +174,7 @@ FIND_PACKAGE(Sophus REQUIRED)
 # # G2O 
 # FIND_PACKAGE(g2o REQUIRED)
 # FIND_PACKAGE(CSparse REQUIRED)
-# FIND_PACKAGE(yaml-cpp REQUIRED)
+FIND_PACKAGE(yaml-cpp REQUIRED)
 
 # GTSAM
 find_package(GTSAM REQUIRED)
@@ -310,7 +310,7 @@ vtk_module_autoinit(
 
 
 ADD_EXECUTABLE(rbphdslam6dSim_euroc src/rbphdslam6d_euroc.cpp)
-TARGET_LINK_LIBRARIES(rbphdslam6dSim_euroc  ${Boost_LIBRARIES} rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} Threads::Threads   ${VTK_LIBRARIES})
+TARGET_LINK_LIBRARIES(rbphdslam6dSim_euroc  ${Boost_LIBRARIES} ${YAML_CPP_LIBRARIES}   rfsslam ${Perftools_PROFILER_LIBRARY} ${Perftools_TCMALLOC_LIBRARY} Threads::Threads   ${VTK_LIBRARIES})
 vtk_module_autoinit(
   TARGETS rbphdslam6dSim_euroc
   MODULES ${VTK_LIBRARIES}

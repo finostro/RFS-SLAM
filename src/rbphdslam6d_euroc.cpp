@@ -237,11 +237,6 @@ public:
 	Eigen::Vector2d principal_point = { camera_parameters_[0].cx,
 			camera_parameters_[0].cy };
 
-	g2o::CameraParameters *cam_params = new g2o::CameraParameters(
-			camera_parameters_[0].fx, principal_point,
-			stereo_baseline_);
-	cam_params->setId(0);
-
 	cv::Mat R_r1_u1, R_r2_u2;
 	cv::Mat P1, P2, Q;
 
@@ -892,12 +887,18 @@ public:
   }
 
   void loadEuroc() {
+    std::cout << "loading images\n";
     std::string pathCam0 = eurocFolder_ + "/mav0/cam0/data";
     std::string pathCam1 = eurocFolder_ + "/mav0/cam1/data";
 
     // Loading image filenames and timestamps
     std::ifstream fTimes;
+    std::cout << "opening timestamps file  " << eurocTimestampsFilename_ << "\n";
     fTimes.open(eurocTimestampsFilename_.c_str());
+    if (!fTimes.is_open()) {
+      std::cout << "could not open timestamps file\n";
+      exit(1);
+    }
     vTimestampsCam.reserve(5000);
     vstrImageLeft.reserve(5000);
     vstrImageRight.reserve(5000);
@@ -905,6 +906,7 @@ public:
 
       std::string s;
       std::getline(fTimes, s);
+      std::cout << "timestamp: " << s << "\n";
       if (!s.empty()) {
         std::stringstream ss;
         ss << s;
@@ -941,6 +943,7 @@ public:
     odometry_.resize(nImages, zero);
 
     for (int ni = 0; ni < nImages; ni++) {
+      std::cout << "  loading image " << ni + 1 << "/" << nImages << "\n";
 
       std::vector<cv::KeyPoint> keypoints_left, keypoints_right;
 
@@ -1007,6 +1010,7 @@ public:
       cv::waitKey(1); // Wait for a keystroke in the window
       std::cout << ni + 1 << "/" << nImages << "                                   \r";
     }
+    std::cout <<  "loaded images\n";
     std::cout << "\n";
   }
 
@@ -1393,7 +1397,7 @@ int main(int argc, char *argv[]) {
   parser.add_argument("-h", "--help").help("produce this help message").store_into(printHelp);
   parser.add_argument("-c", "--cfg")
       .help("configuration xml file")
-      .default_value("cfg/rbphdslam2dSim.xml")
+      .default_value("cfg/rbphdslam2dSim.yaml")
       .store_into(cfgFileName);
   parser.add_argument("-t", "--trajectory").help("trajectory number (default: a random integer)").store_into(trajNum);
   parser.add_argument("-s", "--seed")
