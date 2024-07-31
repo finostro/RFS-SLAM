@@ -94,7 +94,7 @@ void Visualizer6D::setup(const std::vector<MeasurementModel_6D::TLandmark> &grou
 	particleGlyph3D_->SetColorModeToColorByScalar();
 	particleGlyph3D_->ScalingOn();
 	particleGlyph3D_->SetScaleModeToDataScalingOff();
-	particleGlyph3D_->SetScaleFactor(0.2);
+	particleGlyph3D_->SetScaleFactor(0.01);
 	particleGlyph3D_->Update();
 	particleMapper_ = vtkSmartPointer<vtkPolyDataMapper>::New();
 	particleMapper_->SetInputConnection(particleGlyph3D_->GetOutputPort());
@@ -248,7 +248,7 @@ void Visualizer6D::setup(const std::vector<MeasurementModel_6D::TLandmark> &grou
 
 
 
-	renderer_->SetBackground(0, 0, 0); // Background color green
+	renderer_->SetBackground(0, 0.05, 0.10); // Background color green
 	renderWindow_->Render();
 	renderWindowInteractor_->Initialize();
 	renderWindowInteractor_->AddObserver(vtkCommand::TimerEvent,this, &Visualizer6D::pause);
@@ -274,6 +274,7 @@ void Visualizer6D::run(){
 */
 
 }
+
 void Visualizer6D::pause(){
 	display_mutex_->unlock();
 	std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -379,6 +380,7 @@ void Visualizer6D::update(RBPHDFilter<MotionModel_Odometry6d, StaticProcessModel
 		measurementCells_->InsertCellPoint(i+1);
 
 	}
+	std::cout << "measurements: " << measurementPoints_->GetNumberOfPoints() << "\n";
 	measurementCells_->Modified();
 	measurementPoints_->Modified();
 

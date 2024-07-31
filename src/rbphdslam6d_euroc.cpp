@@ -28,6 +28,7 @@
  * THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "GaussianGenerators.hpp"
 #include "ORB.hpp"
 #include "ProcessModel_Odometry6D.hpp"
 #include "RBPHDFilter.hpp"
@@ -691,9 +692,23 @@ public:
     if (use_gui_) {
       visualizer = new Visualizer6D();
       std::vector<MeasurementModel_3D_stereo_orb::TLandmark> groundtruth_landmark;
-      std::vector<MotionModel_Odometry6d::TState> groundtruth_pose;
+      std::vector<MotionModel_Odometry6d::TState> groundtruth_pose= deadReckoning_pose_;
       visualizer->setup(groundtruth_landmark, groundtruth_pose, deadReckoning_pose_);
       visualizer->start();
+    }
+  }
+
+  void stereoMatchesToMeasurments(std::vector<cv::KeyPoint> &keypoints_left, std::vector<cv::KeyPoint> &keypoints_right,
+                            cv::Mat &descriptors_left, cv::Mat &descriptors_right,
+                            std::vector<cv::DMatch> &matches_left_to_right, std::vector<MeasurementModel_3D_stereo_orb::TMeasurement> &measurements, int i) {
+
+    for (int i = 0; i < matches_left_to_right.size(); i++) {
+      MeasurementModel_3D_stereo_orb::TMeasurement measurement;
+      MeasurementModel_3D_stereo_orb::TMeasurement::Vec z;
+      z << keypoints_left[matches_left_to_right[i].queryIdx].pt.x, keypoints_left[matches_left_to_right[i].queryIdx].pt.y, keypoints_right[matches_left_to_right[i].trainIdx].pt.x;
+      measurement.set(z);
+      measurement.setTime(i);
+      measurements.push_back(measurement);
     }
   }
 
@@ -940,6 +955,7 @@ public:
     MotionModel_Odometry6d::TInput::Vec u0;
     u0.setZero();
     zero.set(u0, 0);
+    deadReckoning_pose_.resize(nImages);
     odometry_.resize(nImages, zero);
 
     for (int ni = 0; ni < nImages; ni++) {
@@ -996,6 +1012,7 @@ public:
       ORB_SLAM3::ORBextractor::extract(mpORBextractorRight, &imRight_rect, &mask_right, &keypoints_right, &desc_right,
                                        &vLapping_right);
       computeStereoMatches(keypoints_left, keypoints_right, desc_left, desc_right, matches_left_to_right);
+      stereoMatchesToMeasurments(keypoints_left, keypoints_right, desc_left, desc_right, matches_left_to_right, measurements_, ni);
 
       // plot stereo matches
       cv::Mat imLeftKeys, imRightKeys, imMatches;
@@ -1005,7 +1022,7 @@ public:
 
       cv::drawKeypoints(imRight_rect, keypoints_right, imRightKeys, kpColor);
       cv::drawKeypoints(imLeft_rect, keypoints_left, imLeftKeys, kpColor);
-      cv::imshow("matches", imMatches);
+      // cv::imshow("matches", imMatches);
 
       cv::waitKey(1); // Wait for a keystroke in the window
       std::cout << ni + 1 << "/" << nImages << "                                   \r";
@@ -1386,6 +1403,7 @@ public:
 
 int main(int argc, char *argv[]) {
 
+  rfs::initializeGaussianGenerators();
   Simulator_RBPHDSLAM_6d sim;
 
   int seed = time(NULL);
