@@ -126,8 +126,8 @@ public:
 
     use_gui_ = node["config"]["use_gui"].as<bool>();
     kMax_ = node["config"]["timesteps"].as<int>();
-    dT_ = node["config"]["sec_per_timestep"].as<double>();
-    dTimeStamp_ = TimeStamp(dT_);
+    // dT_ = node["config"]["sec_per_timestep"].as<double>();
+    // dTimeStamp_ = TimeStamp(dT_);
 
     nSegments_ = node["config"]["trajectory"]["nSegments"].as<int>();
     max_dx_ = node["config"]["trajectory"]["max_dx_per_sec"].as<double>();
@@ -700,14 +700,16 @@ public:
 
   void stereoMatchesToMeasurments(std::vector<cv::KeyPoint> &keypoints_left, std::vector<cv::KeyPoint> &keypoints_right,
                             cv::Mat &descriptors_left, cv::Mat &descriptors_right,
-                            std::vector<cv::DMatch> &matches_left_to_right, std::vector<MeasurementModel_3D_stereo_orb::TMeasurement> &measurements, int i) {
+                            std::vector<cv::DMatch> &matches_left_to_right, std::vector<MeasurementModel_3D_stereo_orb::TMeasurement> &measurements, double time) {
 
+    std::cout << "number of matches: " << matches_left_to_right.size() << "\n";
     for (int i = 0; i < matches_left_to_right.size(); i++) {
+      
       MeasurementModel_3D_stereo_orb::TMeasurement measurement;
       MeasurementModel_3D_stereo_orb::TMeasurement::Vec z;
       z << keypoints_left[matches_left_to_right[i].queryIdx].pt.x, keypoints_left[matches_left_to_right[i].queryIdx].pt.y, keypoints_right[matches_left_to_right[i].trainIdx].pt.x;
       measurement.set(z);
-      measurement.setTime(i);
+      measurement.setTime(time);
       measurements.push_back(measurement);
     }
   }
@@ -933,6 +935,8 @@ public:
         vTimestampsCam.push_back(t / 1e9 - t_0);
       }
     }
+    dT_ = (vTimestampsCam[vTimestampsCam.size() - 1] - vTimestampsCam[0])/(vTimestampsCam.size());
+    dTimeStamp_ = TimeStamp(dT_);
     nImages = vstrImageLeft.size();
     kMax_ = nImages;
 
@@ -1135,14 +1139,17 @@ public:
 
       // Prepare measurement vector for update
       std::vector<MeasurementModel_3D_stereo_orb::TMeasurement> Z;
-      TimeStamp kz = measurements_[zIdx].getTime();
-      while (kz == time) {
+      TimeStamp time = measurements_[zIdx].getTime();
+      std::cout << "time: " << time.getTimeAsDouble() << "  " << measurements_[zIdx].getTime().getTimeAsDouble() << "\n";
+      std::cout << "equals: " << (measurements_[zIdx].getTime() == time) << "\n";
+      while (measurements_[zIdx].getTime() == time) {
+
         Z.push_back(measurements_[zIdx]);
         zIdx++;
         if (zIdx >= measurements_.size())
           break;
-        kz = measurements_[zIdx].getTime();
       }
+      std::cout << "number of measurements: " << Z.size() << "\n";
 
       ////////// Update Step //////////
       pFilter_->update(Z);

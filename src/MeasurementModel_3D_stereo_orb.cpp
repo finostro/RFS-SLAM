@@ -77,10 +77,21 @@ bool MeasurementModel_3D_stereo_orb::measure(const Pose6d &pose,
 				      Eigen::Matrix3d *jacobian_wrt_lmk,
 				      Eigen::Matrix<double, 3, 7> *jacobian_wrt_pose) const{
 
+  
+
 
   auto pose_gtsam = to_gtsam(pose);
   auto landmark_gtsam = to_gtsam(landmark);
   gtsam::Point3  point_in_camera_frame = pose_gtsam.transformTo(landmark_gtsam);
+
+  bool discard;
+  if(probabilityOfDetection(pose, landmark, discard) <= 0.0)
+  {
+    return false;
+  }
+
+  if (point_in_camera_frame.z() < 0)
+    return false;
 
   Eigen::Matrix<double, 3,6> jacobian_wrt_pose_tmp;
   auto stereopoint =  jacobian_wrt_pose? 
@@ -145,8 +156,7 @@ bool MeasurementModel_3D_stereo_orb::measure(const Pose6d &pose,
     *jacobian_wrt_pose = H_robot;
   }
 
-  bool discard;
-  return probabilityOfDetection(pose, landmark, discard) > 0.0;
+  return true;
 }
 
 void MeasurementModel_3D_stereo_orb::inverseMeasure(const Pose6d &pose,
