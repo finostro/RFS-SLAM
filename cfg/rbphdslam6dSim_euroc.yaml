@@ -20,9 +20,9 @@ config:
     max_dqy_per_sec: 0.05
     max_dqz_per_sec: 0.050
     max_dqw_per_sec: 0.050
-    vardx: 0.00200
-    vardy: 0.00200
-    vardz: 0.00200
+    vardx: 0.00500
+    vardy: 0.00500
+    vardz: 0.00500
     vardqx: 0.00200
     vardqy: 0.00200
     vardqz: 0.00200

@@ -79,7 +79,10 @@ public:
 
 	void setup(const std::vector<MeasurementModel_6D::TLandmark> &groundtruth_landmark_,
 			const std::vector<MotionModel_Odometry6d::TState> &groundtruth_pose_,
-			const std::vector<MotionModel_Odometry6d::TState> &deadreckoning_pose_ );
+			const std::vector<MotionModel_Odometry6d::TState> &deadreckoning_pose_,
+				RBPHDFilter<MotionModel_Odometry6d, StaticProcessModel<Landmark3d>,
+                        MeasurementModel_3D_stereo_orb,
+                        KalmanFilter<StaticProcessModel<Landmark3d>, MeasurementModel_3D_stereo_orb> > *pFilter_= NULL);
 	void setup();
 
 
@@ -94,6 +97,9 @@ public:
                         KalmanFilter<StaticProcessModel<Landmark3d>, MeasurementModel_6D> > *pFilter_);
         // void update(const VectorGLMBComponent6D &c);
 
+        void initFrustum( MeasurementModel_3D_stereo_orb &measurementModel);
+	void updateFrustum(const Pose6d &x_i, MeasurementModel_3D_stereo_orb &measurementModel);
+
 	void start();
 
 	void run();
@@ -105,14 +111,14 @@ public:
 	vtkSmartPointer<vtkRenderWindow> renderWindow_ ;
 	vtkSmartPointer<vtkRenderWindowInteractor> renderWindowInteractor_;
 	vtkSmartPointer<vtkSphereSource> sphereSource_;
-	vtkSmartPointer<vtkPoints> mapPoints_, gtmapPoints_, particlePoints_, gtTrajectoryPoints_, estTrajectoryPoints_, drTrajectoryPoints_, measurementPoints_;
-	vtkSmartPointer<vtkCellArray> gtTrajectoryCells_, estTrajectoryCells_, drTrajectoryCells_, measurementCells_;
+	vtkSmartPointer<vtkPoints> mapPoints_, gtmapPoints_, particlePoints_, gtTrajectoryPoints_, estTrajectoryPoints_, drTrajectoryPoints_, measurementPoints_, frustumPoints_;
+	vtkSmartPointer<vtkCellArray> gtTrajectoryCells_, estTrajectoryCells_, drTrajectoryCells_, measurementCells_, frustumCells_;
 	vtkSmartPointer<vtkUnsignedCharArray> mapColors_, gtmapColors_, particleColors_;
 	vtkSmartPointer<vtkGlyph3D> mapGlyph3D_, gtmapGlyph3D_, particleGlyph3D_;
-	vtkSmartPointer<vtkPolyData> mapPolydata_, gtmapPolydata_, particlePolydata_, gtTrajectoryPolydata_, estTrajectoryPolydata_, drTrajectoryPolydata_, measurementPolydata_;
-	vtkSmartPointer<vtkActor> mapActor_, gtmapActor_, particleActor_, gtTrajectoryActor_, estTrajectoryActor_, drTrajectoryActor_, measurementActor_;
+	vtkSmartPointer<vtkPolyData> mapPolydata_, gtmapPolydata_, particlePolydata_, gtTrajectoryPolydata_, estTrajectoryPolydata_, drTrajectoryPolydata_, measurementPolydata_, frustumPolydata_;
+	vtkSmartPointer<vtkActor> mapActor_, gtmapActor_, particleActor_, gtTrajectoryActor_, estTrajectoryActor_, drTrajectoryActor_, measurementActor_, frustumActor_;
 	vtkSmartPointer<vtkAxesActor>  axesActor_;
-	vtkSmartPointer<vtkPolyDataMapper> mapMapper_, gtmapMapper_, particleMapper_, gtTrajectoryMapper_, estTrajectoryMapper_, drTrajectoryMapper_, measurementMapper_;
+	vtkSmartPointer<vtkPolyDataMapper> mapMapper_, gtmapMapper_, particleMapper_, gtTrajectoryMapper_, estTrajectoryMapper_, drTrajectoryMapper_, measurementMapper_, frustumMapper_;
 
 
   	vtkSmartPointer<vtkTransform> origin_transform;
@@ -128,6 +134,7 @@ public:
 	std::mutex *display_mutex_;
 	int i_trajectory = 0; // number of steps to show
 
+	std::vector<gtsam::Point3> frustum_points_in_camera_frame_;
 };
 
 

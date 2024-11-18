@@ -1,6 +1,7 @@
 
 
 #include "Visualizer6D.hpp"
+#include <gtsam/geometry/Point3.h>
 
 
 namespace rfs
@@ -17,7 +18,10 @@ void Visualizer6D::start(){
 }
 void Visualizer6D::setup(const std::vector<MeasurementModel_6D::TLandmark> &groundtruth_landmark,
 		const std::vector<MotionModel_Odometry6d::TState> &groundtruth_pose,
-		const std::vector<MotionModel_Odometry6d::TState> &deadreckoning_pose){
+		const std::vector<MotionModel_Odometry6d::TState> &deadreckoning_pose,
+RBPHDFilter<MotionModel_Odometry6d, StaticProcessModel<Landmark3d>,
+                        MeasurementModel_3D_stereo_orb,
+                        KalmanFilter<StaticProcessModel<Landmark3d>, MeasurementModel_3D_stereo_orb> > *pFilter_){
 
 	groundtruth_pose_ = &groundtruth_pose;
 	renderer_ = vtkSmartPointer<vtkRenderer>::New();
@@ -27,6 +31,7 @@ void Visualizer6D::setup(const std::vector<MeasurementModel_6D::TLandmark> &grou
 	renderWindowInteractor_->SetRenderWindow(renderWindow_);
 
 	sphereSource_ = vtkSmartPointer<vtkSphereSource>::New();
+
 
 
 	mapPoints_ = vtkSmartPointer<vtkPoints>::New();
@@ -181,7 +186,6 @@ void Visualizer6D::setup(const std::vector<MeasurementModel_6D::TLandmark> &grou
 	estTrajectoryActor_->GetProperty()->SetColor(0.9,0.0,0.0);
 
 
-
 	measurementPoints_ = vtkSmartPointer<vtkPoints>::New();
 	measurementPoints_->SetNumberOfPoints(1);
 	measurementCells_ = vtkSmartPointer<vtkCellArray>::New();
@@ -219,8 +223,9 @@ void Visualizer6D::setup(const std::vector<MeasurementModel_6D::TLandmark> &grou
  		gtmapPoints_->SetPoint(m, u(0), u(1), u(2));
 		gtmapColors_->SetTuple3(m,00,191,255);
 	}
-
-
+	if(pFilter_ != NULL){
+		initFrustum(*pFilter_->getMeasurementModel());
+	}
 
 
 	renderer_->AddActor(mapActor_);
@@ -230,6 +235,7 @@ void Visualizer6D::setup(const std::vector<MeasurementModel_6D::TLandmark> &grou
 	renderer_->AddActor(estTrajectoryActor_);
 	renderer_->AddActor(drTrajectoryActor_);
 	renderer_->AddActor(measurementActor_);
+	renderer_->AddActor(frustumActor_);
 
 	double center[3];
 	center[0]=0;
@@ -280,6 +286,91 @@ void Visualizer6D::pause(){
 	std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
 	display_mutex_->lock();
+}
+void Visualizer6D::initFrustum( MeasurementModel_3D_stereo_orb &measurementModel){
+
+	std::cout << "init frustum\n";
+	frustumPoints_ = vtkSmartPointer<vtkPoints>::New();
+	frustumPoints_->SetNumberOfPoints(8);
+	frustumCells_ = vtkSmartPointer<vtkCellArray>::New();
+	frustumCells_->InsertNextCell(9);
+	frustumCells_->InsertCellPoint(0);
+	frustumCells_->InsertCellPoint(1);
+	frustumCells_->InsertCellPoint(2);
+	frustumCells_->InsertCellPoint(3);
+	frustumCells_->InsertCellPoint(4);
+	frustumCells_->InsertCellPoint(5);
+	frustumCells_->InsertCellPoint(6);
+	frustumCells_->InsertCellPoint(7);
+	frustumCells_->InsertCellPoint(4);
+
+	frustumPolydata_= vtkSmartPointer<vtkPolyData>::New();
+	frustumPolydata_->SetPoints(frustumPoints_);
+	frustumPolydata_->SetLines(frustumCells_);
+	frustumMapper_ = vtkSmartPointer<vtkPolyDataMapper>::New();
+#if VTK_MAJOR_VERSION <= 5
+	frustumMapper_->SetInput(frustumPolydata_);
+#else
+        frustumMapper_->SetInputData(frustumPolydata_);
+#endif
+
+	frustumMapper_->Update();
+
+	frustumActor_ =  vtkSmartPointer<vtkActor>::New();
+	frustumActor_->SetMapper(frustumMapper_);
+	frustumActor_->GetProperty()->SetColor(0.9,0.9,0.9);
+
+	frustum_points_in_camera_frame_.resize(8);
+
+
+	gtsam::StereoPoint2  stereopoint(0,0.01,0.);
+	std::cout << "stereopoint: " << stereopoint << "\n";
+	frustum_points_in_camera_frame_[0] = measurementModel.config.camera.camera.backproject(stereopoint);
+	std::cout << "frustum_points_in_camera_frame_[0]: " << frustum_points_in_camera_frame_[0] << "\n";
+	frustum_points_in_camera_frame_[0] = frustum_points_in_camera_frame_[0]*(measurementModel.config.rangeLimMin_/frustum_points_in_camera_frame_[0].norm());
+	std::cout << "frustum_points_in_camera_frame_[0]: " << frustum_points_in_camera_frame_[0] << "\n";
+	frustum_points_in_camera_frame_[4]  = frustum_points_in_camera_frame_[0]*(measurementModel.config.rangeLimMax_/frustum_points_in_camera_frame_[0].norm());
+	std::cout << "frustum_points_in_camera_frame_[4]: " << frustum_points_in_camera_frame_[4] << "\n";
+
+	stereopoint = gtsam::StereoPoint2(0.99,0,1);
+	frustum_points_in_camera_frame_[1] = measurementModel.config.camera.camera.backproject(stereopoint);
+	frustum_points_in_camera_frame_[1] = frustum_points_in_camera_frame_[1]*(measurementModel.config.rangeLimMin_/frustum_points_in_camera_frame_[1].norm());
+	frustum_points_in_camera_frame_[5]  = frustum_points_in_camera_frame_[1]*(measurementModel.config.rangeLimMax_/frustum_points_in_camera_frame_[1].norm());
+
+	stereopoint = gtsam::StereoPoint2(0,1,0.01);
+	frustum_points_in_camera_frame_[2] = measurementModel.config.camera.camera.backproject(stereopoint);
+	frustum_points_in_camera_frame_[2] = frustum_points_in_camera_frame_[2]*(measurementModel.config.rangeLimMin_/frustum_points_in_camera_frame_[2].norm());
+	frustum_points_in_camera_frame_[6]  = frustum_points_in_camera_frame_[2]*(measurementModel.config.rangeLimMax_/frustum_points_in_camera_frame_[2].norm());
+
+	stereopoint = gtsam::StereoPoint2(0.99,1,1.0);
+	frustum_points_in_camera_frame_[3] = measurementModel.config.camera.camera.backproject(stereopoint);
+	frustum_points_in_camera_frame_[3] = frustum_points_in_camera_frame_[3]*(measurementModel.config.rangeLimMin_/frustum_points_in_camera_frame_[3].norm());
+	frustum_points_in_camera_frame_[7]  = frustum_points_in_camera_frame_[3]*(measurementModel.config.rangeLimMax_/frustum_points_in_camera_frame_[3].norm());
+
+	frustumPoints_->SetNumberOfPoints(8);
+	for(int i = 0; i < 8; i++){
+		frustumPoints_->SetPoint(i, frustum_points_in_camera_frame_[i].x(), frustum_points_in_camera_frame_[i].y(), frustum_points_in_camera_frame_[i].z());
+		std::cout << frustum_points_in_camera_frame_[i] << "\n";
+	}
+
+
+
+}
+
+
+void Visualizer6D::updateFrustum(const Pose6d &x_i, MeasurementModel_3D_stereo_orb &measurementModel){
+	
+
+
+	for(int i = 0; i < 8; i++){
+		auto pose_gtsam = to_gtsam(x_i);
+		auto point_in_global_frame = pose_gtsam.transformTo(frustum_points_in_camera_frame_[i]);
+		frustumPoints_->SetPoint(i, point_in_global_frame.x(), point_in_global_frame.y(), point_in_global_frame.z());
+	}
+
+	frustumPoints_->Modified();
+	frustumCells_->Modified();
+
 }
 
 void Visualizer6D::update(RBPHDFilter<MotionModel_Odometry6d, StaticProcessModel<Landmark3d>,
@@ -380,7 +471,17 @@ void Visualizer6D::update(RBPHDFilter<MotionModel_Odometry6d, StaticProcessModel
 		measurementCells_->InsertCellPoint(i+1);
 
 	}
-	std::cout << "measurements: " << measurementPoints_->GetNumberOfPoints() << "\n";
+
+	
+	
+	
+	initFrustum(*pFilter_->getMeasurementModel());
+
+	updateFrustum(x_i, *pFilter_->getMeasurementModel());
+
+
+
+
 	measurementCells_->Modified();
 	measurementPoints_->Modified();
 

@@ -953,7 +953,7 @@ public:
     // initial_component_.numPoses_= nImages;
     // initial_component_.numPoints_ = 0;
 
-    measurements_.resize(nImages);
+    measurements_.reserve(nImages);
 
     MotionModel_Odometry6d::TInput zero;
     MotionModel_Odometry6d::TInput::Vec u0;
@@ -1016,7 +1016,7 @@ public:
       ORB_SLAM3::ORBextractor::extract(mpORBextractorRight, &imRight_rect, &mask_right, &keypoints_right, &desc_right,
                                        &vLapping_right);
       computeStereoMatches(keypoints_left, keypoints_right, desc_left, desc_right, matches_left_to_right);
-      stereoMatchesToMeasurments(keypoints_left, keypoints_right, desc_left, desc_right, matches_left_to_right, measurements_, ni);
+      stereoMatchesToMeasurments(keypoints_left, keypoints_right, desc_left, desc_right, matches_left_to_right, measurements_, tframe);
 
       // plot stereo matches
       cv::Mat imLeftKeys, imRightKeys, imMatches;
